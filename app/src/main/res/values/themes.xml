@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Window-level theme applied before Compose takes over the window.
+        Using Theme.AppCompat.Light.NoActionBar keeps the splash window
+        background clean; the Compose ItantraTheme handles everything else.
+    -->
+    <style name="Theme.Itantra" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/ic_launcher_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
