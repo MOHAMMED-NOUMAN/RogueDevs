@@ -5,23 +5,64 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.itantra.app.feature.communication.ui.CommunicationScreen
+import com.itantra.app.feature.communication.ui.PairingScreen
+import com.itantra.app.feature.settings.ui.SettingsScreen
+import com.itantra.app.feature.home.ui.HomeScreen
+import com.itantra.app.feature.nearby.ui.NearbyDevicesScreen
+import com.itantra.app.feature.signup.ui.SignupScreen
 
 /**
- * Single source of truth for app navigation. Add one line here per
- * screen — don't scatter navigation logic across composables.
+ * Single source of truth for app navigation.
  */
 sealed class Screen(val route: String) {
-    data object Communication : Screen("communication")
-    // data object Emergency : Screen("emergency")       // add as that feature lands
-    // data object TeamTracking : Screen("team_tracking")
+    data object Signup : Screen("signup")
+    data object Home : Screen("home")
+    data object Pairing : Screen("pairing")
+    data object Nearby : Screen("nearby")
+
+    data object Settings : Screen(route="settings")
 }
 
 @Composable
-fun ItantraNavGraph(navController: NavHostController = rememberNavController()) {
-    NavHost(navController = navController, startDestination = Screen.Communication.route) {
-        composable(Screen.Communication.route) {
-            CommunicationScreen()
+fun ItantraNavGraph(
+    navController: NavHostController = rememberNavController()
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Signup.route
+    ) {
+
+        composable(Screen.Signup.route) {
+            SignupScreen(
+                onContinue = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Signup.route) {
+                            inclusive = true
+                        }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Home.route) {
+            HomeScreen()
+        }
+
+        composable(Screen.Pairing.route) {
+            PairingScreen()
+        }
+        composable(Screen.Settings.route) {
+            PairingScreen()
+        }
+        composable(Screen.Nearby.route) {
+            NearbyDevicesScreen(
+                onPairViaQr = {
+                    // QR navigation will be connected later
+                },
+                onConnect = { deviceName ->
+                    // Bluetooth connection will be connected later
+                }
+            )
         }
     }
 }
