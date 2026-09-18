@@ -3,6 +3,7 @@ package com.itantra.app.core.transport
 import com.itantra.app.core.transport.LinkKind.RFCOMM
 import com.itantra.app.core.transport.LinkKind.WIFI_DIRECT
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -171,6 +172,33 @@ class TransportTest {
         advanceTimeBy(50_000)
 
         assertEquals(listOf(0L, 1_000, 3_000, 7_000, 15_000, 31_000, 47_000), attemptTimes)
+    }
+
+    @Test
+    fun `a listening connector may wait longer than the connect timeout`() = runTest {
+        val incoming = Channel<Link>(1)
+        val listener = object : LinkConnector {
+            var attempts = 0
+            override val kind = RFCOMM
+            override val listens = true
+            override suspend fun connect(): Link {
+                attempts++
+                return incoming.receive()
+            }
+        }
+        val pair = FakeLinkPair(RFCOMM)
+        val a = startTransport(listener, epoch = 1)
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(1, listener.attempts)
+        assertEquals(LinkStatus.Disconnected, a.linkStatus.value)
+
+        startTransport(FakeConnector(RFCOMM).apply { offer(pair.b) }, epoch = 2)
+        incoming.send(pair.a)
+        runCurrent()
+
+        assertEquals(1, listener.attempts)
+        assertEquals(LinkStatus.Connected(RFCOMM), a.linkStatus.value)
     }
 
     @Test

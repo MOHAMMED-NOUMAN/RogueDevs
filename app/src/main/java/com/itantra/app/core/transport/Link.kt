@@ -38,8 +38,14 @@ interface LinkConnector {
     val kind: LinkKind
 
     /**
+     * True if [connect] waits for the peer to dial in rather than dialling out. [Transport]
+     * then lets it wait as long as it takes instead of applying [TransportConfig.connectTimeout].
+     */
+    val listens: Boolean get() = false
+
+    /**
      * Connects to the paired peer, or throws if this radio can't reach it right now.
-     * Must be cancellable: [Transport] gives up after [TransportConfig.connectTimeout].
+     * Must be cancellable: [Transport] gives up on dialling after [TransportConfig.connectTimeout].
      */
     suspend fun connect(): Link
 }

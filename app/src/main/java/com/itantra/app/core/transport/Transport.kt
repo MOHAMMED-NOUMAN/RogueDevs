@@ -191,9 +191,16 @@ class Transport(
     }
 
     private suspend fun connectAny(): Link? {
+        // TODO(transport): once Wi-Fi Direct and RFCOMM can both listen (step 5), a listening
+        //  phone must wait on both at once instead of on the first connector only.
         for (connector in connectors) {
             try {
-                withTimeoutOrNull(config.connectTimeout) { connector.connect() }?.let { return it }
+                val link = if (connector.listens) {
+                    connector.connect()
+                } else {
+                    withTimeoutOrNull(config.connectTimeout) { connector.connect() }
+                }
+                if (link != null) return link
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

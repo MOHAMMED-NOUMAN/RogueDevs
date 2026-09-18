@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permissions are intentionally left out of this boilerplate.
          Add Bluetooth / Wi-Fi / location / microphone / foreground-service
@@ -11,6 +12,22 @@
          phone-to-phone TCP socket over Wi-Fi Direct. The app never contacts the internet;
          the checkOfflineOnly Gradle task fails the build if an HTTP client appears. -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Transport: Bluetooth RFCOMM link and pairing discovery.
+         Android 8-11 use the old BLUETOOTH/BLUETOOTH_ADMIN pair, and discovery there also
+         needs location permission with the Location switch on.
+         Android 12+ split them: CONNECT to use a link, SCAN to discover the peer while
+         pairing, ADVERTISE to ask for "make this phone visible" while hosting a pairing. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
     <application
         android:name=".ItantraApplication"
