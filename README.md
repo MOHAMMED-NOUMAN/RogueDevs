@@ -104,13 +104,12 @@ itantra/
 │           │
 │           ├── core/
 │           │   ├── audio/          # Audio recording, playback and audio processing
-│           │   ├── bluetooth/      # Bluetooth discovery, connection and data transfer
 │           │   ├── location/       # GPS/location related functionality
 │           │   ├── ml/              # Offline STT/TTS model integration
 │           │   ├── permissions/    # Android runtime permission handling
 │           │   ├── sensors/        # Device sensor access and sensor utilities
 │           │   ├── utils/           # Shared utility/helper classes
-│           │   └── wifi/            # Wi-Fi Direct and Wi-Fi communication
+│           │   └── transport/       # Offline peer link: Wi-Fi Direct, Bluetooth RFCOMM, BLE SOS beacon
 │           │
 │           ├── data/
 │           │   ├── local/

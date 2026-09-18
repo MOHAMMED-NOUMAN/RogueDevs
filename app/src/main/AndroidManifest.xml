@@ -7,6 +7,11 @@
          one — don't front-load permission prompts before there's a
          reason for them. -->
 
+    <!-- Transport: Android refuses to open ANY socket without INTERNET, including the
+         phone-to-phone TCP socket over Wi-Fi Direct. The app never contacts the internet;
+         the checkOfflineOnly Gradle task fails the build if an HTTP client appears. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".ItantraApplication"
         android:allowBackup="false"
