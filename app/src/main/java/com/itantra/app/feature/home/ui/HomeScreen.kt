@@ -66,6 +66,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.ripple
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.indication
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -774,10 +777,20 @@ private fun BottomNavigationItem(
         label = "NavItemIndicator"
     )
 
+    // The whole cell is tappable, but the press ripple only shows inside the rounded
+    // indicator behind the icon, not as a grey box over the entire cell.
+    val interactionSource = remember { MutableInteractionSource() }
+
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .selectable(selected = selected, onClick = onClick, role = Role.Tab),
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.Tab,
+                interactionSource = interactionSource,
+                indication = null
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -785,7 +798,8 @@ private fun BottomNavigationItem(
             modifier = Modifier
                 .size(width = 56.dp, height = 30.dp)
                 .clip(RoundedCornerShape(15.dp))
-                .background(indicatorColor),
+                .background(indicatorColor)
+                .indication(interactionSource, ripple(color = DeepDarkGreen)),
             contentAlignment = Alignment.Center
         ) {
             Icon(

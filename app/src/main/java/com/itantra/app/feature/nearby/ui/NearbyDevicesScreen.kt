@@ -282,34 +282,27 @@ private fun BluetoothScanner() {
                 )
             }
 
-            // Center button
-            Surface(
-                modifier = Modifier.size(50.dp),
-                shape = CircleShape,
-                color = SoftGreen,
-                shadowElevation = 3.dp
+            // Center: flat green disc on a pale halo, icon sized to sit well inside it
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(SoftGreen),
+                contentAlignment = Alignment.Center
             ) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(PrimaryGreen),
                     contentAlignment = Alignment.Center
                 ) {
-                    Surface(
-                        modifier = Modifier.size(34.dp),
-                        shape = CircleShape,
-                        color = PrimaryGreen
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Scan",
-                                tint = Color.White,
-                                modifier = Modifier.size(40.dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Scanning",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         }
