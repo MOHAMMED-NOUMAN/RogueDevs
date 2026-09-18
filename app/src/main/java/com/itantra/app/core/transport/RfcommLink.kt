@@ -30,17 +30,8 @@ private const val PAIRING_SERVICE_NAME = "iTantra pairing"
 internal class RfcommLink(socket: BluetoothSocket) :
     Link by StreamLink(LinkKind.RFCOMM, socket.inputStream, socket.outputStream, socket::close)
 
-/** Which side of the Bluetooth connection this phone takes, fixed at pairing. */
-enum class RfcommRole {
-    /** Showed the pairing QR code. Waits for the peer to dial in. */
-    LISTEN,
-
-    /** Scanned the pairing QR code. Dials the peer. */
-    DIAL,
-}
-
 /** What this phone needs to reach its paired peer over Bluetooth. Store it after pairing. */
-data class RfcommPeer(val address: String, val role: RfcommRole)
+data class RfcommPeer(val address: String, val role: PeerRole)
 
 /**
  * Opens RFCOMM links to the paired [peer]. Uses insecure RFCOMM (no Bluetooth bonding dialog);
@@ -52,13 +43,13 @@ class RfcommConnector(context: Context, private val peer: RfcommPeer) : LinkConn
         context.getSystemService(BluetoothManager::class.java)?.adapter
 
     override val kind = LinkKind.RFCOMM
-    override val listens = peer.role == RfcommRole.LISTEN
+    override val listens = peer.role == PeerRole.LISTEN
 
     override suspend fun connect(): Link {
         val adapter = enabledAdapter(adapter)
         return when (peer.role) {
-            RfcommRole.DIAL -> dial(adapter)
-            RfcommRole.LISTEN -> accept(adapter)
+            PeerRole.DIAL -> dial(adapter)
+            PeerRole.LISTEN -> accept(adapter)
         }
     }
 
@@ -121,7 +112,7 @@ class RfcommPairing(context: Context) {
             val socket = cancellableBlocking(server::close) { server.accept() }
             try {
                 cancellableBlocking(socket::close) { handshake(socket, initiator = false) }
-                return RfcommPeer(socket.remoteDevice.address, RfcommRole.LISTEN)
+                return RfcommPeer(socket.remoteDevice.address, PeerRole.LISTEN)
             } finally {
                 socket.close()
             }
@@ -144,7 +135,7 @@ class RfcommPairing(context: Context) {
                     socket.connect()
                     handshake(socket, initiator = true)
                 }
-                return RfcommPeer(device.address, RfcommRole.DIAL)
+                return RfcommPeer(device.address, PeerRole.DIAL)
             } catch (e: IOException) {
                 // Not hosting this code (or out of reach). Try the next phone.
             } finally {

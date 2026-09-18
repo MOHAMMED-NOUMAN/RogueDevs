@@ -45,14 +45,22 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.itantra.app.core.transport.BeaconStart
+import com.itantra.app.core.transport.BleBeacon
 import com.itantra.app.core.transport.Delivery
 import com.itantra.app.core.transport.MAX_PACKET_SIZE
 import com.itantra.app.core.transport.Priority
 import com.itantra.app.core.transport.RfcommConnector
 import com.itantra.app.core.transport.RfcommPairing
+import com.itantra.app.core.transport.PeerRole
 import com.itantra.app.core.transport.RfcommPeer
-import com.itantra.app.core.transport.RfcommRole
 import com.itantra.app.core.transport.Transport
+import com.itantra.app.core.transport.TransportService
+import com.itantra.app.core.transport.WifiDirectConnector
+import com.itantra.app.core.transport.WifiDirectPeer
+import com.itantra.app.core.transport.placeholderSosPayload
+import java.nio.ByteBuffer
+import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,8 +71,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Debug-only screen for testing the transport layer between two real phones: pair over
- * Bluetooth, start the link, send packets at each priority, hold push-to-talk. Not product UI;
+ * Debug-only screen for testing the transport layer between two real phones: pair, start the
+ * link (Wi-Fi Direct first, Bluetooth fallback), send packets at each priority, hold
+ * push-to-talk, and send or listen for the SOS beacon. Not product UI;
  * release builds don't contain it. Packets here are plain text because there's no crypto layer
  * yet; in the app they arrive already encrypted.
  */
@@ -88,38 +97,51 @@ private object DebugTransport {
     private lateinit var prefs: SharedPreferences
     private var pairingJob: Job? = null
     private var receiveJob: Job? = null
+    private var scanJob: Job? = null
+    private var pairingCode: String? = null
+    private val beacon by lazy { BleBeacon(appContext) }
+    private var sosSequence = 0
 
     val peer = MutableStateFlow<RfcommPeer?>(null)
     val status = MutableStateFlow("")
     val transport = MutableStateFlow<Transport?>(null)
     val sent = MutableStateFlow<List<Pair<String, Delivery>>>(emptyList())
     val received = MutableStateFlow<List<String>>(emptyList())
+    val beaconOn = MutableStateFlow(false)
+    val listening = MutableStateFlow(false)
+    val beaconsHeard = MutableStateFlow<List<String>>(emptyList())
 
     fun init(context: Context) {
         if (::prefs.isInitialized) return
         appContext = context
         prefs = context.getSharedPreferences("transport_debug", Context.MODE_PRIVATE)
         val address = prefs.getString("address", null)
-        val role = prefs.getString("role", null)?.let(RfcommRole::valueOf)
-        if (address != null && role != null) peer.value = RfcommPeer(address, role)
+        val role = prefs.getString("role", null)?.let(PeerRole::valueOf)
+        pairingCode = prefs.getString("code", null)
+        if (address != null && role != null && pairingCode != null) peer.value = RfcommPeer(address, role)
     }
 
-    fun host(code: String) = pair("Hosting code $code. Waiting for the other phone to join…") {
+    fun host(code: String) = pair(code, "Hosting code $code. Waiting for the other phone to join…") {
         RfcommPairing(appContext).host(code.encodeToByteArray())
     }
 
-    fun join(code: String) = pair("Looking for the phone hosting $code (takes about 12 s)…") {
+    fun join(code: String) = pair(code, "Looking for the phone hosting $code (takes about 12 s)…") {
         RfcommPairing(appContext).join(code.encodeToByteArray())
     }
 
-    private fun pair(message: String, block: suspend () -> RfcommPeer) {
+    private fun pair(code: String, message: String, block: suspend () -> RfcommPeer) {
         stop()
         pairingJob?.cancel()
         status.value = message
         pairingJob = scope.launch {
             try {
                 val paired = block()
-                prefs.edit().putString("address", paired.address).putString("role", paired.role.name).apply()
+                prefs.edit()
+                    .putString("address", paired.address)
+                    .putString("role", paired.role.name)
+                    .putString("code", code)
+                    .apply()
+                pairingCode = code
                 peer.value = paired
                 status.value = "Paired with ${paired.address}"
             } catch (e: CancellationException) {
@@ -138,8 +160,15 @@ private object DebugTransport {
 
     fun start() {
         val paired = peer.value ?: return
+        val code = pairingCode ?: return
         if (transport.value != null) return
-        val started = Transport(listOf(RfcommConnector(appContext, paired)), scope)
+        // Preference order: Wi-Fi Direct first, Bluetooth as the fallback.
+        val connectors = listOf(
+            WifiDirectConnector(appContext, WifiDirectPeer.fromPairingCode(code.encodeToByteArray(), paired.role)),
+            RfcommConnector(appContext, paired),
+        )
+        val started = Transport(connectors, scope)
+        TransportService.start(appContext)
         receiveJob = scope.launch {
             started.received.collect { packet -> received.update { it + packet.decodeToString() } }
         }
@@ -151,6 +180,62 @@ private object DebugTransport {
         transport.value?.stop()
         receiveJob?.cancel()
         transport.value = null
+        if (::appContext.isInitialized) TransportService.stop(appContext)
+    }
+
+    fun toggleBeacon() {
+        if (beaconOn.value) {
+            beacon.stopAdvertising()
+            beaconOn.value = false
+            return
+        }
+        scope.launch {
+            val payload = placeholderSosPayload(senderId(), ++sosSequence)
+            when (val result = beacon.startAdvertising(payload)) {
+                BeaconStart.Started -> {
+                    beaconOn.value = true
+                    status.value = "SOS beacon on"
+                }
+                BeaconStart.Unsupported -> {
+                    status.value = "This phone can't advertise over BLE; sending SOS over the link instead"
+                    transport.value?.send(payload, Priority.SOS)
+                }
+                is BeaconStart.Failed -> status.value = "SOS beacon failed: ${result.reason}"
+            }
+        }
+    }
+
+    fun toggleListening() {
+        if (scanJob != null) {
+            scanJob?.cancel()
+            scanJob = null
+            listening.value = false
+            return
+        }
+        listening.value = true
+        scanJob = scope.launch {
+            try {
+                beacon.scan().collect { heard ->
+                    val sender = ByteBuffer.wrap(heard.payload, 1, 4).int
+                    val line = "sender ${Integer.toHexString(sender)}  RSSI ${heard.rssi} dBm"
+                    beaconsHeard.update { (listOf(line) + it).take(20) }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status.value = "Beacon scan failed: ${e.message ?: e}"
+            } finally {
+                listening.value = false
+                scanJob = null
+            }
+        }
+    }
+
+    /** Random per install, so two test phones' beacons can be told apart. */
+    private fun senderId(): Int {
+        val saved = prefs.getInt("sender", 0)
+        if (saved != 0) return saved
+        return Random.nextInt().also { prefs.edit().putInt("sender", it).apply() }
     }
 
     fun send(text: String, priority: Priority) {
@@ -164,16 +249,22 @@ private object DebugTransport {
     }
 }
 
-private fun bluetoothPermissions(): Array<String> =
+/** Everything transport needs at runtime on this Android version. */
+private fun transportPermissions(): Array<String> = buildList {
     if (Build.VERSION.SDK_INT >= 31) {
-        arrayOf(
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_ADVERTISE,
-        )
-    } else {
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.BLUETOOTH_CONNECT)
+        add(Manifest.permission.BLUETOOTH_SCAN)
+        add(Manifest.permission.BLUETOOTH_ADVERTISE)
     }
+    if (Build.VERSION.SDK_INT >= 33) {
+        add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        add(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        // Wi-Fi Direct up to Android 12L, and Bluetooth discovery up to 11, need location.
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+}.toTypedArray()
 
 @Composable
 private fun TransportDebugScreen() {
@@ -212,8 +303,8 @@ private fun TransportDebugScreen() {
     ) {
         Text("Transport debug", style = MaterialTheme.typography.titleLarge)
         if (status.isNotEmpty()) Text(status)
-        OutlinedButton(onClick = { permissionLauncher.launch(bluetoothPermissions()) }) {
-            Text("Grant Bluetooth permissions")
+        OutlinedButton(onClick = { permissionLauncher.launch(transportPermissions()) }) {
+            Text("Grant permissions")
         }
 
         Heading("1. Pair (once per pair of phones)")
@@ -267,6 +358,26 @@ private fun TransportDebugScreen() {
             }
         }
         if (current != null) PushToTalk(current)
+
+        Heading("4. SOS beacon (no pairing needed)")
+        val beaconOn by DebugTransport.beaconOn.collectAsState()
+        val listening by DebugTransport.listening.collectAsState()
+        val beaconsHeard by DebugTransport.beaconsHeard.collectAsState()
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = DebugTransport::toggleBeacon) {
+                Text(if (beaconOn) "Stop SOS beacon" else "Send SOS beacon")
+            }
+            OutlinedButton(onClick = DebugTransport::toggleListening) {
+                Text(if (listening) "Stop listening" else "Listen")
+            }
+        }
+        if (beaconsHeard.isEmpty()) {
+            Text(
+                if (listening) "Listening for SOS beacons…" else "No beacons heard",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        beaconsHeard.forEach { Text(it) }
 
         Heading("Sent")
         if (sent.isEmpty()) Text("Nothing yet", style = MaterialTheme.typography.bodySmall)

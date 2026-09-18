@@ -8,6 +8,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +84,11 @@ data class TransportConfig(
     val sendWindow: Int = 8,
     /** How many recent sequence numbers are remembered for dropping duplicates. */
     val dedupWindow: Int = 1024,
+    /**
+     * While on a fallback radio (Bluetooth), how often a dialling phone retries the preferred
+     * one (Wi-Fi Direct). Listening phones simply keep waiting on it.
+     */
+    val upgradeInterval: Duration = 30.seconds,
 )
 
 /**
@@ -90,7 +96,9 @@ data class TransportConfig(
  *
  * Connects through [connectors] in preference order (Wi-Fi Direct first, then RFCOMM),
  * ACKs and resends, drops duplicates, keeps unsent messages in an in-memory outbox while
- * no link is up, heartbeats, and reconnects with exponential back-off.
+ * no link is up, heartbeats, and reconnects with exponential back-off. While running on a
+ * fallback radio it keeps trying the preferred one and moves back as soon as it works;
+ * unACKed messages move to the new link.
  *
  * Every piece of mutable state is touched only from coroutines on a single-threaded view of
  * [parentScope]'s dispatcher, so none of it needs locks. Nothing here blocks: links do their
@@ -145,6 +153,7 @@ class Transport(
     fun stop() {
         runJob?.cancel()
         runJob = null
+        connectors.forEach { it.release() }
     }
 
     /**
@@ -178,29 +187,45 @@ class Transport(
 
     private suspend fun runLoop() {
         var backoff = config.initialBackoff
+        var next: Connection? = null
         while (true) {
-            val link = connectAny()
-            if (link != null && runSession(link)) {
-                // The link really worked, so reconnect straight away with a fresh back-off.
-                backoff = config.initialBackoff
-                continue
+            val connection = next ?: connectAny(connectors)
+            next = null
+            if (connection != null) {
+                val end = runSession(connection)
+                if (end.upgrade != null || end.peerHeard) {
+                    // The link really worked, or a better one is ready: go again at once.
+                    next = end.upgrade
+                    backoff = config.initialBackoff
+                    continue
+                }
             }
             delay(backoff)
             backoff = minOf(backoff * 2, config.maxBackoff)
         }
     }
 
-    private suspend fun connectAny(): Link? {
-        // TODO(transport): once Wi-Fi Direct and RFCOMM can both listen (step 5), a listening
-        //  phone must wait on both at once instead of on the first connector only.
-        for (connector in connectors) {
+    /**
+     * Opens a link on the most preferred radio that works. A dialling phone tries the radios in
+     * order. A listening phone waits on all of them at once, because the peer decides which
+     * radio it reaches us on.
+     */
+    private suspend fun connectAny(candidates: List<LinkConnector>): Connection? =
+        if (candidates.isNotEmpty() && candidates.all { it.listens }) {
+            acceptAny(candidates)
+        } else {
+            dialInOrder(candidates)
+        }
+
+    private suspend fun dialInOrder(candidates: List<LinkConnector>): Connection? {
+        candidates.forEachIndexed { rank, connector ->
             try {
                 val link = if (connector.listens) {
                     connector.connect()
                 } else {
                     withTimeoutOrNull(config.connectTimeout) { connector.connect() }
                 }
-                if (link != null) return link
+                if (link != null) return Connection(link, rank)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -210,9 +235,30 @@ class Transport(
         return null
     }
 
-    /** Runs one link until it dies. Returns true if the peer was heard on it at all. */
-    private suspend fun runSession(link: Link): Boolean {
+    private suspend fun acceptAny(candidates: List<LinkConnector>): Connection? = coroutineScope {
+        val winner = CompletableDeferred<Connection?>()
+        var failures = 0
+        val attempts = candidates.mapIndexed { rank, connector ->
+            launch {
+                try {
+                    val link = connector.connect()
+                    // If another radio got there first, this link is surplus.
+                    if (!winner.complete(Connection(link, rank))) link.close()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (++failures == candidates.size) winner.complete(null)
+                }
+            }
+        }
+        winner.await().also { attempts.forEach(Job::cancel) }
+    }
+
+    /** Runs one link until it dies or a better radio takes over. */
+    private suspend fun runSession(connection: Connection): SessionEnd {
+        val link = connection.link
         var peerHeard = false
+        var upgrade: Connection? = null
         val outgoing = Channel<ByteArray>(Channel.UNLIMITED)
         try {
             coroutineScope {
@@ -244,6 +290,23 @@ class Transport(
                     }
                 }
 
+                // On a fallback radio: keep trying the preferred ones and switch when one works.
+                val preferred = connectors.subList(0, connection.rank)
+                if (preferred.isNotEmpty()) {
+                    launch {
+                        val listening = preferred.all { it.listens }
+                        while (true) {
+                            if (!listening) delay(config.upgradeInterval)
+                            val better = connectAny(preferred)
+                            if (better != null) {
+                                upgrade = better
+                                throw LinkUpgrade()
+                            }
+                            if (listening) delay(config.upgradeInterval)
+                        }
+                    }
+                }
+
                 current.write(Frame.Hello(epoch))
                 if (localTransmitting) sendPtt(current)
                 pump()
@@ -256,9 +319,10 @@ class Transport(
                 }
             }
         } catch (e: CancellationException) {
+            upgrade?.link?.close()
             throw e
         } catch (e: Exception) {
-            // The link died: I/O error, peer closed it, or heartbeat timeout.
+            // The link died (I/O error, peer closed it, heartbeat timeout) or a better one is ready.
         } finally {
             outgoing.close()
             link.close()
@@ -267,7 +331,7 @@ class Transport(
             _peerTransmitting.value = false
             requeueInFlight()
         }
-        return peerHeard
+        return SessionEnd(peerHeard, upgrade)
     }
 
     private fun handle(frame: Frame, current: Session) {
@@ -368,6 +432,13 @@ class Transport(
         inFlight.clear()
         pendingPtt = null
     }
+
+    /** A live link and the rank of the connector that opened it (0 = most preferred). */
+    private class Connection(val link: Link, val rank: Int)
+
+    private class SessionEnd(val peerHeard: Boolean, val upgrade: Connection?)
+
+    private class LinkUpgrade : IOException("moving to a preferred radio")
 
     private class Session(val outgoing: SendChannel<ByteArray>, val scope: CoroutineScope) {
         fun write(frame: Frame) {

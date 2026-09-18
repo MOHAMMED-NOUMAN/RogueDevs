@@ -13,14 +13,13 @@
          the checkOfflineOnly Gradle task fails the build if an HTTP client appears. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Transport: Bluetooth RFCOMM link and pairing discovery.
-         Android 8-11 use the old BLUETOOTH/BLUETOOTH_ADMIN pair, and discovery there also
-         needs location permission with the Location switch on.
-         Android 12+ split them: CONNECT to use a link, SCAN to discover the peer while
-         pairing, ADVERTISE to ask for "make this phone visible" while hosting a pairing. -->
+    <!-- Transport: Bluetooth RFCOMM link, pairing discovery and the BLE SOS beacon.
+         Android 8-11 use the old BLUETOOTH/BLUETOOTH_ADMIN pair, and discovery/scanning there
+         also needs location permission with the Location switch on.
+         Android 12+ split them: CONNECT to use a link, SCAN to discover the peer and hear SOS
+         beacons, ADVERTISE to become visible while hosting a pairing and to send the beacon. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
@@ -28,6 +27,26 @@
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <!-- Transport: Wi-Fi Direct link. Android 13+ uses NEARBY_WIFI_DEVICES; before that,
+         Wi-Fi Direct (and Bluetooth discovery on 8-11) needs location permission, which is
+         why location stops at API 32. The app never reads the phone's location for this. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="tiramisu" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
+    <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
+
+    <!-- Transport: foreground service + wake lock that keep the link alive with the screen off. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".ItantraApplication"
@@ -46,6 +65,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".core.transport.TransportService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
     </application>
 

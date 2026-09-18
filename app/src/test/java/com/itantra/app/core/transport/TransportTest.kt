@@ -176,16 +176,7 @@ class TransportTest {
 
     @Test
     fun `a listening connector may wait longer than the connect timeout`() = runTest {
-        val incoming = Channel<Link>(1)
-        val listener = object : LinkConnector {
-            var attempts = 0
-            override val kind = RFCOMM
-            override val listens = true
-            override suspend fun connect(): Link {
-                attempts++
-                return incoming.receive()
-            }
-        }
+        val listener = ListeningFakeConnector(RFCOMM)
         val pair = FakeLinkPair(RFCOMM)
         val a = startTransport(listener, epoch = 1)
         advanceTimeBy(60_000)
@@ -194,11 +185,71 @@ class TransportTest {
         assertEquals(LinkStatus.Disconnected, a.linkStatus.value)
 
         startTransport(FakeConnector(RFCOMM).apply { offer(pair.b) }, epoch = 2)
-        incoming.send(pair.a)
+        listener.offer(pair.a)
         runCurrent()
 
         assertEquals(1, listener.attempts)
         assertEquals(LinkStatus.Connected(RFCOMM), a.linkStatus.value)
+    }
+
+    @Test
+    fun `a dialling phone moves back to Wi-Fi when it recovers, carrying unACKed messages over`() = runTest {
+        val bluetooth = FakeLinkPair(RFCOMM)
+        val wifi = FakeLinkPair(WIFI_DIRECT)
+        val wifiA = FakeConnector(WIFI_DIRECT)
+        val wifiB = FakeConnector(WIFI_DIRECT)
+        val a = startTransport(wifiA, FakeConnector(RFCOMM).apply { offer(bluetooth.a) }, epoch = 1)
+        val b = startTransport(wifiB, FakeConnector(RFCOMM).apply { offer(bluetooth.b) }, epoch = 2)
+        val got = receivedText(b)
+        runCurrent()
+        assertEquals(LinkStatus.Connected(RFCOMM), a.linkStatus.value)
+
+        // A message goes out on Bluetooth just before Wi-Fi returns, and its ACK never comes back.
+        advanceTimeBy(29_000)
+        bluetooth.dropAtoB = { FrameCodec.decode(it) is Frame.Data }
+        val delivery = a.send(text("switch"), Priority.NORMAL)
+        runCurrent()
+        assertEquals(DeliveryStatus.SENT, delivery.status.value)
+
+        wifiA.offer(wifi.a)
+        wifiB.offer(wifi.b)
+        advanceTimeBy(1_000) // retry of the preferred radio is due at 30 s
+        runCurrent()
+
+        assertEquals(LinkStatus.Connected(WIFI_DIRECT), a.linkStatus.value)
+        assertEquals(DeliveryStatus.DELIVERED, delivery.status.value)
+        assertEquals(listOf("switch"), got)
+        assertEquals(1, wifi.sentByA.dataFrames().size)
+    }
+
+    @Test
+    fun `a listening phone waits on both radios and moves to Wi-Fi when the peer does`() = runTest {
+        val wifi = ListeningFakeConnector(WIFI_DIRECT)
+        val bluetooth = ListeningFakeConnector(RFCOMM)
+        val a = startTransport(wifi, bluetooth, epoch = 1)
+        runCurrent()
+        assertEquals(1, wifi.attempts) // waiting on both at once
+        assertEquals(1, bluetooth.attempts)
+
+        bluetooth.offer(FakeLinkPair(RFCOMM).a)
+        runCurrent()
+        assertEquals(LinkStatus.Connected(RFCOMM), a.linkStatus.value)
+
+        wifi.offer(FakeLinkPair(WIFI_DIRECT).a)
+        runCurrent()
+        assertEquals(LinkStatus.Connected(WIFI_DIRECT), a.linkStatus.value)
+    }
+
+    @Test
+    fun `stop releases every connector`() = runTest {
+        val wifi = FakeConnector(WIFI_DIRECT)
+        val bluetooth = FakeConnector(RFCOMM)
+        val a = startTransport(wifi, bluetooth, epoch = 1)
+        runCurrent()
+
+        a.stop()
+
+        assertTrue(wifi.released && bluetooth.released)
     }
 
     @Test

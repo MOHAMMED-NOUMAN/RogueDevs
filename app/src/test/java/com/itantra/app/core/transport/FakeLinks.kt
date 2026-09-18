@@ -55,12 +55,13 @@ class FakeLinkPair(kind: LinkKind = LinkKind.WIFI_DIRECT) {
     }
 }
 
-/** Hands out links that a test [offer]s, and fails when it has none, like an unreachable peer. */
+/** A dialling connector: hands out links a test [offer]s, and fails when it has none. */
 class FakeConnector(
     override val kind: LinkKind = LinkKind.WIFI_DIRECT,
     private val onAttempt: () -> Unit = {},
 ) : LinkConnector {
     private val available = ArrayDeque<Link>()
+    var released = false
 
     fun offer(link: Link) {
         available.addLast(link)
@@ -69,6 +70,27 @@ class FakeConnector(
     override suspend fun connect(): Link {
         onAttempt()
         return available.removeFirstOrNull() ?: throw IOException("peer not reachable")
+    }
+
+    override fun release() {
+        released = true
+    }
+}
+
+/** A listening connector: [connect] waits until a test [offer]s a link, like a peer dialling in. */
+class ListeningFakeConnector(override val kind: LinkKind) : LinkConnector {
+    private val incoming = Channel<Link>(Channel.UNLIMITED)
+    var attempts = 0
+
+    override val listens = true
+
+    fun offer(link: Link) {
+        incoming.trySend(link)
+    }
+
+    override suspend fun connect(): Link {
+        attempts++
+        return incoming.receive()
     }
 }
 

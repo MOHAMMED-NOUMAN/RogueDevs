@@ -4,6 +4,17 @@ package com.itantra.app.core.transport
 enum class LinkKind { WIFI_DIRECT, RFCOMM }
 
 /**
+ * Which side of the connection this phone takes, fixed at pairing and the same on every radio.
+ */
+enum class PeerRole {
+    /** Showed the pairing QR code. Waits for the peer: Bluetooth server, Wi-Fi Direct group owner. */
+    LISTEN,
+
+    /** Scanned the pairing QR code. Reaches out to the peer. */
+    DIAL,
+}
+
+/**
  * One live connection to the paired peer, carrying whole frames.
  *
  * A Link is single-use: once [receive] or [send] throws, or [close] is called, it is dead and
@@ -48,4 +59,10 @@ interface LinkConnector {
      * Must be cancellable: [Transport] gives up on dialling after [TransportConfig.connectTimeout].
      */
     suspend fun connect(): Link
+
+    /**
+     * Called when [Transport] stops. Tears down anything kept up between links, such as a
+     * Wi-Fi Direct group. Must not block.
+     */
+    fun release() {}
 }
