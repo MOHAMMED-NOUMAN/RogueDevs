@@ -12,10 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -32,6 +29,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.res.painterResource
@@ -50,7 +65,7 @@ fun SignupScreen(
     var selectedLanguages by remember {
         mutableStateOf(setOf<String>())
     }
-    var languageDropdownExpanded by remember { mutableStateOf(false) }
+    var languageSheetOpen by remember { mutableStateOf(false) }
 
     val indianLanguages = listOf(
         "Hindi", "English", "Telugu", "Tamil", "Kannada", "Malayalam",
@@ -124,14 +139,8 @@ fun SignupScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        ExposedDropdownMenuBox(
-            expanded = languageDropdownExpanded,
-            onExpandedChange = {
-                languageDropdownExpanded = !languageDropdownExpanded
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-
+        // Tapping the field opens a bottom sheet to pick one or more languages.
+        Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = when {
                     selectedLanguages.isEmpty() -> ""
@@ -140,32 +149,26 @@ fun SignupScreen(
                 },
                 onValueChange = {},
                 readOnly = true,
-
                 placeholder = {
                     Text(
                         "Preferred Languages",
                         color = Color.Gray
                     )
                 },
-
                 textStyle = androidx.compose.ui.text.TextStyle(
                     color = DeepDarkGreen,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 ),
-
                 trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = languageDropdownExpanded
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = Color.Gray
                     )
                 },
-
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(),
-
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = DeepDarkGreen,
                     unfocusedTextColor = DeepDarkGreen,
@@ -175,62 +178,26 @@ fun SignupScreen(
                     focusedContainerColor = Color.White
                 )
             )
-
-            ExposedDropdownMenu(
-                expanded = languageDropdownExpanded,
-                onDismissRequest = {
-                    languageDropdownExpanded = false
-                },
+            // A read-only text field swallows taps, so a transparent layer on top opens the sheet.
+            Box(
                 modifier = Modifier
-                    .background(Color.White)
-            ) {
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(24.dp))
+                    .clickable(role = Role.Button) { languageSheetOpen = true }
+            )
+        }
 
-                indianLanguages.forEach { language ->
-
-                    val isSelected = selectedLanguages.contains(language)
-
-                    DropdownMenuItem(
-
-                        text = {
-                            Text(
-                                text = language,
-                                color = DeepDarkGreen,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        },
-
-                        trailingIcon = {
-                            if (isSelected) {
-                                Text(
-                                    text = "✓",
-                                    color = DeepDarkGreen,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        },
-
-                        onClick = {
-
-                            selectedLanguages =
-                                if (isSelected) {
-                                    selectedLanguages - language
-                                } else {
-                                    selectedLanguages + language
-                                }
-                        },
-
-                        modifier = Modifier.background(
-                            if (isSelected) {
-                                Color(0xFFE8F0E9)
-                            } else {
-                                Color.White
-                            }
-                        )
-                    )
-                }
-            }
+        if (languageSheetOpen) {
+            LanguagePickerSheet(
+                languages = indianLanguages,
+                selected = selectedLanguages,
+                onToggle = { language ->
+                    selectedLanguages =
+                        if (language in selectedLanguages) selectedLanguages - language
+                        else selectedLanguages + language
+                },
+                onDismiss = { languageSheetOpen = false }
+            )
         }
 
         Spacer(modifier = Modifier.height(40.dp))
@@ -252,6 +219,92 @@ fun SignupScreen(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LanguagePickerSheet(
+    languages: List<String>,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Preferred languages",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeepDarkGreen,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+            Text(
+                text = if (selected.isEmpty()) "Choose one or more" else "${selected.size} selected",
+                fontSize = 13.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 2.dp, bottom = 8.dp)
+            )
+            HorizontalDivider(color = GrayBorder)
+
+            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                items(languages) { language ->
+                    val checked = language in selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = checked,
+                                role = Role.Checkbox,
+                                onValueChange = { onToggle(language) }
+                            )
+                            .padding(horizontal = 24.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = language,
+                            fontSize = 16.sp,
+                            fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal,
+                            color = DeepDarkGreen,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = null, // the whole row toggles
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = DeepDarkGreen,
+                                uncheckedColor = Color.Gray
+                            )
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = GrayBorder)
+            Button(
+                onClick = {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                    .height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepDarkGreen,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Done", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
