@@ -20,7 +20,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,10 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,6 +66,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import com.itantra.app.R
@@ -90,92 +96,94 @@ fun HomeScreen(
     val uiState by communicationViewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    Box(
+    // The bar sits below the content (not floating over it), so no screen needs to leave
+    // blank room at the bottom. Each screen pads itself for the status bar.
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
     ) {
-        when (selectedTab) {
-            1 -> {
-                // Full Team Map Screen
-                LocationScreen()
+        Box(modifier = Modifier.weight(1f)) {
+            when (selectedTab) {
+                1 -> {
+                    // Full Team Map Screen
+                    LocationScreen()
 
-            }
-            2 -> {
-                NearbyDevicesScreen(
-                    onPairViaQr = {
-                        selectedTab = 3
-                    },
-                    onConnect = { deviceName ->
-                        // Bluetooth connection logic will be added later
-                    }
-                )
-            }
-            3 -> {
-                PairingScreen()
-            }
-            4 -> {
-                SettingsScreen()
-            }
-            5 -> {
-                SOS(
-                    onBack = {
-                        selectedTab = 0
-                    }
-                )
-            }
-            else -> {
-                // Main Home Dashboard Content
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 90.dp) // Leave room for floating bottom nav
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // 1. Top Header with SOS Button (Pulse Glow Animation)
-                    HomeHeaderSection(
-                        onSOSClick = {
-                            selectedTab = 5
+                }
+                2 -> {
+                    NearbyDevicesScreen(
+                        onPairViaQr = {
+                            selectedTab = 3
+                        },
+                        onConnect = { deviceName ->
+                            // Bluetooth connection logic will be added later
                         }
                     )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // 2. Team Map Card
-                    HomeMapCardSection(onExpandMap = { selectedTab = 1 })
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 3. Priority Alert Card
-                    HomePriorityAlertSection()
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // 4. Hold To Talk Section (Smooth Scale & Ripple Animation)
-                    HomeHoldToTalkSection(
-                        uiState = uiState,
-                        onPressed = { communicationViewModel.onPushToTalkPressed() },
-                        onReleased = { communicationViewModel.onPushToTalkReleased() }
+                }
+                3 -> {
+                    PairingScreen()
+                }
+                4 -> {
+                    SettingsScreen()
+                }
+                5 -> {
+                    SOS(
+                        onBack = {
+                            selectedTab = 0
+                        }
                     )
+                }
+                else -> {
+                    // Main Home Dashboard Content
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // 1. Top Header with SOS Button (Pulse Glow Animation)
+                        HomeHeaderSection(
+                            onSOSClick = {
+                                selectedTab = 5
+                            }
+                        )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // 2. Team Map Card
+                        HomeMapCardSection(onExpandMap = { selectedTab = 1 })
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // 3. Priority Alert Card
+                        HomePriorityAlertSection()
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // 4. Hold To Talk Section (Smooth Scale & Ripple Animation)
+                        HomeHoldToTalkSection(
+                            uiState = uiState,
+                            onPressed = { communicationViewModel.onPushToTalkPressed() },
+                            onReleased = { communicationViewModel.onPushToTalkReleased() }
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
             }
+
         }
 
-        // 5. Floating Custom Bottom Navigation (Smooth Morph/Slide Animation)
+        // 5. Bottom navigation (hidden on the full-screen SOS page)
         if (selectedTab != 5) {
-            FloatingBottomNavigation(
+            BottomNavigationBar(
                 selectedTab = selectedTab,
                 onTabSelected = { tabIndex ->
                     selectedTab = tabIndex
                     onNavigateToTab(tabIndex)
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                }
             )
         }
     }
@@ -706,148 +714,123 @@ private fun HomeHoldToTalkSection(
 }
 
 /**
- * 5. Floating Custom Bottom Navigation with Smooth Morph/Slide Animation
+ * 5. Bottom navigation, docked to the bottom edge. It extends under the system gesture bar
+ * and pads its items above it.
  */
 @Composable
-private fun FloatingBottomNavigation(
+private fun BottomNavigationBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val items = listOf(
         NavigationItem("Home", Icons.Default.Home),
-        NavigationItem("Map", Icons.Default.Search),
-        NavigationItem("Nearby", Icons.Default.Person),
-        NavigationItem("QR", Icons.Default.Share),
+        NavigationItem("Map", Icons.Default.LocationOn),
+        NavigationItem("Nearby", BluetoothIcon),
+        NavigationItem("QR", QrCodeIcon),
         NavigationItem("Settings", Icons.Default.Settings)
     )
 
-    // Smooth Eased Spring Position for Sliding Tab Pill
-    val animatedTabPosition by animateFloatAsState(
-        targetValue = selectedTab.toFloat(),
-        animationSpec = spring(
-            dampingRatio = 0.75f,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "ActiveTabPosition"
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(84.dp)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = Color.White
     ) {
-        // 1. Navbar Base Background Card (62.dp height, aligned to BottomCenter)
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(62.dp)
-                .align(Alignment.BottomCenter)
-                .shadow(12.dp, RoundedCornerShape(31.dp)),
-            shape = RoundedCornerShape(31.dp),
-            color = Color.White,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GrayBorder)
-        ) {
+        Column {
+            HorizontalDivider(thickness = 1.dp, color = GrayBorder)
             Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .height(68.dp)
+                    .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 items.forEachIndexed { index, item ->
-                    val isSelected = selectedTab == index
-
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onTabSelected(index) }
-                    ) {
-                        if (!isSelected) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = item.label,
-                                    tint = Color.Gray,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = item.label,
-                                    fontSize = 10.sp,
-                                    color = Color.Gray
-                                )
-                            }
-                        } else {
-                            // Label for selected tab sits in the lower part of navbar
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(top = 22.dp)
-                            ) {
-                                Text(
-                                    text = item.label,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DeepDarkGreen
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Smoothly Sliding Raised Active Circle (Sits completely on top in Z-index, unclipped!)
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(84.dp)
-                .align(Alignment.BottomCenter)
-        ) {
-            val totalWidth = maxWidth
-            val itemWidth = totalWidth / items.size
-            val activePillX = itemWidth * animatedTabPosition
-
-            Box(
-                modifier = Modifier
-                    .width(itemWidth)
-                    .height(84.dp)
-                    .offset(x = activePillX),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                // White notched outer circle (protruding fully above top edge of navbar!)
-                Box(
-                    modifier = Modifier
-                        .size(54.dp)
-                        .shadow(8.dp, CircleShape)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .padding(4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Inner active dark green circle with soft light green icon
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                            .background(DeepDarkGreen),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = items[selectedTab].icon,
-                            contentDescription = items[selectedTab].label,
-                            tint = SoftLightGreen,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+                    BottomNavigationItem(
+                        item = item,
+                        selected = selectedTab == index,
+                        onClick = { onTabSelected(index) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
     }
 }
+
+@Composable
+private fun BottomNavigationItem(
+    item: NavigationItem,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) DeepDarkGreen else NavUnselectedGray,
+        label = "NavItemContent"
+    )
+    val indicatorColor by animateColorAsState(
+        targetValue = if (selected) SoftLightGreen.copy(alpha = 0.45f) else Color.Transparent,
+        label = "NavItemIndicator"
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .selectable(selected = selected, onClick = onClick, role = Role.Tab),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 56.dp, height = 30.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(indicatorColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null, // the label below names the tab
+                tint = contentColor,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = item.label,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = contentColor,
+            maxLines = 1
+        )
+    }
+}
+
+private val NavUnselectedGray = Color(0xFF6B716C)
+
+/** Material "bluetooth" glyph (Apache 2.0); the core icon set doesn't include it. */
+private val BluetoothIcon: ImageVector = materialIcon(
+    "Bluetooth",
+    "M17.71,7.71L12,2h-1v7.59L6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 11,14.41V22h1l5.71,-5.71 " +
+        "-4.3,-4.29 4.3,-4.29zM13,5.83l1.88,1.88L13,9.59V5.83zM14.88,16.29L13,18.17v-3.76l1.88,1.88z"
+)
+
+/** Material "qr_code" glyph (Apache 2.0); the core icon set doesn't include it. */
+private val QrCodeIcon: ImageVector = materialIcon(
+    "QrCode",
+    "M3,11h8V3H3V11zM5,5h4v4H5V5zM3,21h8v-8H3V21zM5,15h4v4H5V15zM13,3v8h8V3H13zM19,9h-4V5h4V9z" +
+        "M19,19h2v2h-2zM13,13h2v2h-2zM15,15h2v2h-2zM13,17h2v2h-2zM15,19h2v2h-2zM17,17h2v2h-2z" +
+        "M17,13h2v2h-2zM19,15h2v2h-2z"
+)
+
+private fun materialIcon(name: String, pathData: String): ImageVector =
+    ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).addPath(pathData = addPathNodes(pathData), fill = SolidColor(Color.Black)).build()
 
 private data class NavigationItem(val label: String, val icon: ImageVector)
 

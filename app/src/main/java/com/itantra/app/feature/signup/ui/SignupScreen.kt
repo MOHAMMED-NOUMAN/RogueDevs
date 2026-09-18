@@ -1,5 +1,6 @@
 package com.itantra.app.feature.signup.ui
 
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ fun SignupScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
+            .systemBarsPadding() // shown before Home, so no bottom bar here
             .padding(horizontal = 32.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

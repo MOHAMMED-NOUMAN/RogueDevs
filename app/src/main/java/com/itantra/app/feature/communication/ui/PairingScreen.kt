@@ -1,4 +1,5 @@
 package com.itantra.app.feature.communication.ui
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,6 +58,7 @@ fun PairingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
+            .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
 

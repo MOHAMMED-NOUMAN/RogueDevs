@@ -1,5 +1,6 @@
 package com.itantra.app.feature.location.ui
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -144,7 +145,7 @@ fun LocationScreen() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 90.dp) // Room for bottom nav
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally

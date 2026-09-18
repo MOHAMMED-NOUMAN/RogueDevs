@@ -1,5 +1,6 @@
 package com.itantra.app.feature.settings.ui
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,12 +62,13 @@ fun SettingsScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(
                 start = 20.dp,
                 top = 24.dp,
                 end = 20.dp,
-                bottom = 120.dp
+                bottom = 24.dp
             )
     ) {
 

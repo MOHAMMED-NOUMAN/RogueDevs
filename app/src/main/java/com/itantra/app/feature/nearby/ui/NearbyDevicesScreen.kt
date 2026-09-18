@@ -1,5 +1,6 @@
 package com.itantra.app.feature.nearby.ui
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.material.icons.Icons
@@ -75,13 +76,15 @@ fun NearbyDevicesScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBackground)
+            .statusBarsPadding()
             .verticalScroll(scrollState)
             .padding(
                 start = 20.dp,
                 top = 18.dp,
                 end = 20.dp,
-                bottom = 120.dp
-            )    ) {
+                bottom = 24.dp
+            )
+    ) {
 
         // Header
         NearbyHeader()
