@@ -52,7 +52,7 @@ fun ItantraNavGraph(
             PairingScreen()
         }
         composable(Screen.Settings.route) {
-            PairingScreen()
+            SettingsScreen()
         }
         composable(Screen.Nearby.route) {
             NearbyDevicesScreen(

@@ -42,11 +42,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -76,7 +78,10 @@ import com.itantra.app.R
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itantra.app.feature.communication.viewmodel.CommunicationUiState
 import com.itantra.app.feature.communication.viewmodel.CommunicationViewModel
+import com.itantra.app.feature.pairing.PairingViewModel
 import com.itantra.app.feature.location.ui.LocationScreen
+import com.itantra.app.core.pairing.PairingPhase
+import com.itantra.app.core.pairing.TransportKind
 import com.itantra.app.ui.theme.DeepDarkGreen
 import com.itantra.app.ui.theme.GrayBorder
 import com.itantra.app.ui.theme.OffWhite
@@ -85,9 +90,11 @@ import com.itantra.app.ui.theme.SoftLightGreen
 @Composable
 fun HomeScreen(
     communicationViewModel: CommunicationViewModel = hiltViewModel(),
+    pairingViewModel: PairingViewModel = hiltViewModel(),
     onNavigateToTab: (Int) -> Unit = {}
 ) {
     val uiState by communicationViewModel.uiState.collectAsState()
+    val pairingState by pairingViewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Box(
@@ -106,13 +113,19 @@ fun HomeScreen(
                     onPairViaQr = {
                         selectedTab = 3
                     },
+                    deviceNames = pairingState.discovered.map { it.name },
+                    scanning = pairingState.phase == PairingPhase.Scanning,
+                    statusMessage = pairingState.statusMessage,
+                    onScan = { pairingViewModel.findTeammates(TransportKind.BLUETOOTH) },
                     onConnect = { deviceName ->
-                        // Bluetooth connection logic will be added later
+                        pairingState.discovered.find { it.name == deviceName }?.let {
+                            pairingViewModel.connect(it)
+                        }
                     }
                 )
             }
             3 -> {
-                PairingScreen()
+                PairingScreen(viewModel = pairingViewModel)
             }
             4 -> {
                 SettingsScreen()
@@ -138,6 +151,11 @@ fun HomeScreen(
                     HomeHeaderSection(
                         onSOSClick = {
                             selectedTab = 5
+                        },
+                        peerLabel = if (pairingState.peers.isNotEmpty()) {
+                            "${pairingState.peers.size} paired  •  ${pairingState.sessionCode}"
+                        } else {
+                            "Not paired  •  ${pairingState.sessionCode.ifBlank { "open Pairing" }}"
                         }
                     )
 
@@ -165,6 +183,20 @@ fun HomeScreen(
             }
         }
 
+        if (pairingState.incoming != null && selectedTab != 3) {
+            AlertDialog(
+                onDismissRequest = { pairingViewModel.reject() },
+                title = { Text("${pairingState.incoming?.fromName} wants to join") },
+                text = { Text("Accept only if this is your teammate.") },
+                confirmButton = {
+                    TextButton(onClick = { pairingViewModel.accept() }) { Text("Accept") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pairingViewModel.reject() }) { Text("Reject") }
+                }
+            )
+        }
+
         // 5. Floating Custom Bottom Navigation (Smooth Morph/Slide Animation)
         if (selectedTab != 5) {
             FloatingBottomNavigation(
@@ -186,7 +218,8 @@ fun HomeScreen(
  */
 @Composable
 private fun HomeHeaderSection(
-    onSOSClick: () -> Unit
+    onSOSClick: () -> Unit,
+    peerLabel: String = "Not paired"
 ) {
     // SOS Button Continuous Pulse Animation
     val infiniteTransition = rememberInfiniteTransition(label = "SosPulseTransition")
@@ -233,7 +266,7 @@ private fun HomeHeaderSection(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "4 Peers Online  •  Channel 01",
+                    text = peerLabel,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.Gray
