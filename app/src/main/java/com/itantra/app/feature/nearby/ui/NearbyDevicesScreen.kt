@@ -67,9 +67,14 @@ private val MutedText = Color(0xFF9AA6A1)
 @Composable
 fun NearbyDevicesScreen(
     onPairViaQr: () -> Unit = {},
-    onConnect: (String) -> Unit = {}
+    onConnect: (String) -> Unit = {},
+    deviceNames: List<String> = emptyList(),
+    scanning: Boolean = false,
+    statusMessage: String = "Bluetooth discovery",
+    onScan: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
+    val names = deviceNames
 
     Column(
         modifier = Modifier
@@ -84,18 +89,18 @@ fun NearbyDevicesScreen(
             )    ) {
 
         // Header
-        NearbyHeader()
+        NearbyHeader(subtitle = statusMessage)
 
         Spacer(modifier = Modifier.height(26.dp))
 
-        // Bluetooth scanning animation
-        BluetoothScanner()
+        Box(modifier = Modifier.clickable { onScan() }) {
+            BluetoothScanner(scanning = scanning)
+        }
 
         Spacer(modifier = Modifier.height(26.dp))
 
-        // Found devices label
         Text(
-            text = "4 DEVICES FOUND",
+            text = "${names.size} DEVICES FOUND",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.1.sp,
@@ -104,48 +109,29 @@ fun NearbyDevicesScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Device list
-        DeviceCard(
-            initial = "R",
-            name = "Rhea's Phone",
-            distance = "8 m away",
-            signal = SignalStrength.STRONG,
-            avatarColor = PrimaryGreen,
-            onConnect = { onConnect("Rhea's Phone") }
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        DeviceCard(
-            initial = "Z",
-            name = "Zain — Relief Camp",
-            distance = "22 m away",
-            signal = SignalStrength.STRONG,
-            avatarColor = PrimaryGreen,
-            onConnect = { onConnect("Zain — Relief Camp") }
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        DeviceCard(
-            initial = "U",
-            name = "Unknown Device",
-            distance = "40 m away",
-            signal = SignalStrength.WEAK,
-            avatarColor = Color(0xFF8A9A94),
-            onConnect = { onConnect("Unknown Device") }
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        DeviceCard(
-            initial = "N",
-            name = "NDRF Unit 07",
-            distance = "55 m away",
-            signal = SignalStrength.MEDIUM,
-            avatarColor = Cyan,
-            onConnect = { onConnect("NDRF Unit 07") }
-        )
+        if (names.isEmpty()) {
+            Text(
+                text = if (scanning) {
+                    "Scanning for iTantra phones…"
+                } else {
+                    "Tap the scanner to find teammates. One phone must tap Wait on Pairing."
+                },
+                fontSize = 13.sp,
+                color = SecondaryText
+            )
+        } else {
+            names.forEach { name ->
+                DeviceCard(
+                    initial = name.first().uppercaseChar().toString(),
+                    name = name,
+                    distance = "nearby",
+                    signal = SignalStrength.STRONG,
+                    avatarColor = PrimaryGreen,
+                    onConnect = { onConnect(name) }
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+        }
 
         Spacer(modifier = Modifier.height(26.dp))
 
@@ -164,15 +150,12 @@ fun NearbyDevicesScreen(
                 color = SecondaryText
             )
 
-            Text(
-                text = "Pair via QR instead ›",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PrimaryGreen,
-                modifier = Modifier.clickable {
-                    onPairViaQr()
-                }
-            )
+                Text(
+                    text = "Use Pairing tab if you need Wi-Fi or Accept/Reject.",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PrimaryGreen
+                )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -184,7 +167,7 @@ fun NearbyDevicesScreen(
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun NearbyHeader() {
+private fun NearbyHeader(subtitle: String) {
     Column {
         Text(
             text = "Nearby Devices",
@@ -196,7 +179,7 @@ private fun NearbyHeader() {
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "Bluetooth discovery",
+            text = subtitle,
             fontSize = 14.sp,
             color = SecondaryText
         )
@@ -208,7 +191,7 @@ private fun NearbyHeader() {
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun BluetoothScanner() {
+private fun BluetoothScanner(scanning: Boolean = true) {
 
     val infiniteTransition = rememberInfiniteTransition(
         label = "bluetoothScanner"
@@ -314,7 +297,7 @@ private fun BluetoothScanner() {
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Scanning for devices...",
+            text = if (scanning) "Scanning for devices..." else "Tap to scan",
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             color = SecondaryText

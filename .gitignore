@@ -26,3 +26,5 @@ Thumbs.db
 *.jks
 *.keystore
 keystore.properties
+.idea/
+.kotlin/
