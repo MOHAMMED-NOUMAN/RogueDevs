@@ -1,0 +1,13 @@
+{
+  "audio": "sample_hi.wav",
+  "duration_s": 4.02,
+  "reference_transcript": "हमने ओबीसी तबके के बच्चों के लिए उच्च शिक्षा में आरक्षण दिया",
+  "expected_output": "हमने ओबीसी तबके के बच्चों के लिए उच्च शिक्षा में आरक्षण दिया",
+  "tokens": 67,
+  "mac_ms": {
+    "mel": 5,
+    "encoder": 83,
+    "decoder": 180,
+    "decoder_per_token": 2.6
+  }
+}

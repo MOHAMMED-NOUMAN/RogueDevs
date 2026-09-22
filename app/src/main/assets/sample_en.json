@@ -1,0 +1,13 @@
+{
+  "audio": "sample_en.wav",
+  "duration_s": 4.5,
+  "reference_transcript": "This is an important way to distinguish between some verbs and objects.",
+  "expected_output": "This is an important way to distinguish between some verbs and objects.",
+  "tokens": 13,
+  "mac_ms": {
+    "mel": 5,
+    "encoder": 77,
+    "decoder": 42,
+    "decoder_per_token": 3.01
+  }
+}

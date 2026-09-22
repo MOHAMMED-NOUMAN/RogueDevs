@@ -17,6 +17,13 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    androidResources {
+        // The ONNX graphs are 42 MB per language; compressing them would make every
+        // launch pay to inflate them again.
+        noCompress += listOf("onnx")
     }
 
     buildTypes {
@@ -68,6 +75,9 @@ dependencies {
     // DataStore (settings/prefs — replaces SharedPreferences)
     implementation(libs.datastore.preferences)
 
+    // Offline speech-to-text (Whisper ONNX graphs in assets)
+    implementation(libs.onnxruntime.android)
+
     // Coroutines + Serialization
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
@@ -75,4 +85,8 @@ dependencies {
     // Debug-only Compose tooling (layout inspector, @Preview rendering)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // On-device tests (the STT benchmark runs here)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

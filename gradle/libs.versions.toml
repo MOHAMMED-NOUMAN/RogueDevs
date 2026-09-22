@@ -30,9 +30,13 @@ datastore                  = "1.1.1"
 kotlinxCoroutines          = "1.10.2"
 kotlinxSerializationJson   = "1.8.1"
 
+# ── On-device speech-to-text ─────────────────────────────────────────
+onnxruntimeAndroid         = "1.20.0"
+
 # ── Testing ──────────────────────────────────────────────────────────
 junit                      = "4.13.2"
 androidxJunit              = "1.2.1"
+androidxTestRunner         = "1.6.2"
 espressoCore               = "3.6.1"
 
 [libraries]
@@ -79,9 +83,13 @@ kotlinx-coroutines-android         = { group = "org.jetbrains.kotlinx",      nam
 # Serialization
 kotlinx-serialization-json         = { group = "org.jetbrains.kotlinx",      name = "kotlinx-serialization-json",  version.ref = "kotlinxSerializationJson" }
 
+# ONNX Runtime (offline Whisper STT)
+onnxruntime-android                = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android",   version.ref = "onnxruntimeAndroid" }
+
 # Testing
 junit                              = { group = "junit",                      name = "junit",                       version.ref = "junit" }
 androidx-junit                     = { group = "androidx.test.ext",          name = "junit",                       version.ref = "androidxJunit" }
+androidx-test-runner               = { group = "androidx.test",              name = "runner",                      version.ref = "androidxTestRunner" }
 androidx-espresso-core             = { group = "androidx.test.espresso",     name = "espresso-core",               version.ref = "espressoCore" }
 
 [plugins]

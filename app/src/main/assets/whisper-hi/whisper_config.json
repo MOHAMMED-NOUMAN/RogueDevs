@@ -1,0 +1,24 @@
+{
+  "language": "hi",
+  "whisper_language": "hindi",
+  "n_mels": 80,
+  "n_frames": 3000,
+  "n_layers": 4,
+  "d_model": 384,
+  "n_ctx": 448,
+  "vocab_size": 51865,
+  "prompt_tokens": [
+    50258,
+    50276,
+    50359,
+    50363
+  ],
+  "eos_token": 50257,
+  "suppress_tokens": [],
+  "begin_suppress_tokens": [
+    220,
+    50257
+  ],
+  "first_special_token": 50257,
+  "timestamp_begin": 50364
+}
