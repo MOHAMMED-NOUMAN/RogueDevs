@@ -1,5 +1,11 @@
 package com.itantra.app.feature.home.ui
 
+import androidx.core.content.ContextCompat
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.content.pm.PackageManager
+import android.Manifest
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -109,6 +115,13 @@ fun HomeScreen(
         if (LinkPermissions.allRequiredGranted(context)) pairingViewModel.ensureLinkRunning()
     }
 
+    // Hold to Talk asks for the microphone on first use; the user presses again once allowed.
+    val micPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (!granted) communicationViewModel.onMicPermissionDenied() }
+    fun micGranted() = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+        PackageManager.PERMISSION_GRANTED
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -140,11 +153,20 @@ fun HomeScreen(
                             .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        HomeHoldToTalkSection(
-                            uiState = uiState,
-                            onPressed = { communicationViewModel.onPushToTalkPressed() },
-                            onReleased = { communicationViewModel.onPushToTalkReleased() }
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            HomeHoldToTalkSection(
+                                uiState = uiState,
+                                onPressed = {
+                                    if (micGranted()) communicationViewModel.onPushToTalkPressed()
+                                    else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                                },
+                                onReleased = { communicationViewModel.onPushToTalkReleased() }
+                            )
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            TranscriptSection(uiState = uiState)
+                        }
                     }
                 }
             }
@@ -349,7 +371,11 @@ private fun HomeHoldToTalkSection(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = if (isRecording) "LISTENING..." else "HOLD TO TALK",
+            text = when (uiState) {
+                CommunicationUiState.Recording -> "LISTENING..."
+                CommunicationUiState.Transcribing -> "CONVERTING..."
+                else -> "HOLD TO TALK"
+            },
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = DeepDarkGreen,
@@ -359,11 +385,78 @@ private fun HomeHoldToTalkSection(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = if (isRecording) "Release when finished speaking" else "Press and hold to broadcast voice message",
+            text = when (uiState) {
+                CommunicationUiState.Recording -> "Release when finished speaking"
+                CommunicationUiState.Transcribing -> "Turning your speech into text"
+                else -> "Press and hold, speak, then let go"
+            },
             fontSize = 12.sp,
             color = Color.Gray,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+/**
+ * What Hold to Talk heard, shown once after each release so it can be checked. Nothing is
+ * sent to the teammate yet.
+ */
+@Composable
+private fun TranscriptSection(uiState: CommunicationUiState) {
+    when (uiState) {
+        CommunicationUiState.Transcribing -> Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = DeepDarkGreen
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "Converting speech to text…", fontSize = 13.sp, color = Color.Gray)
+        }
+
+        is CommunicationUiState.Transcribed -> {
+            val t = uiState.transcript
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, GrayBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "YOU SAID",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = t.text,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DeepDarkGreen,
+                        lineHeight = 25.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "${t.language.label} · ${"%.1f".format(t.speechSeconds)} s of speech · " +
+                            "converted in ${"%.1f".format(t.convertMs / 1000f)} s",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+
+        is CommunicationUiState.Problem -> Text(
+            text = uiState.message,
+            fontSize = 13.sp,
+            color = Color(0xFFD32F2F),
+            textAlign = TextAlign.Center
+        )
+
+        else -> Unit
     }
 }
 

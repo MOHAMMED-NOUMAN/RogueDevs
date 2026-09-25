@@ -42,6 +42,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
 
+    <!-- Hold to Talk: records the voice that offline speech-to-text turns into text. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Transport: foreground service + wake lock that keep the link alive with the screen off. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
