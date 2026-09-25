@@ -44,7 +44,7 @@ cd itantra
 
 The debug APK will be at:
 ```
-app/build/outputs/apk/debug/app-debug.apk
+app/build/outputs/apk/debug/itantra-debug.apk
 ```
 
 ---

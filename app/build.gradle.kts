@@ -7,6 +7,11 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// APKs are named itantra-<build type>.apk (e.g. itantra-debug.apk) instead of app-*.apk.
+base {
+    archivesName = "itantra"
+}
+
 android {
     namespace = "com.itantra.app"
     compileSdk = 36 // match whatever the wizard set; bump only if AS prompts you
