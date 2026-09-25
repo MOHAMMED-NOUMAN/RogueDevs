@@ -35,18 +35,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.res.painterResource
 import com.itantra.app.R
-import com.itantra.app.feature.signup.SignupViewModel
 import com.itantra.app.ui.theme.DeepDarkGreen
 import com.itantra.app.ui.theme.GrayBorder
 import com.itantra.app.ui.theme.OffWhite
 import com.itantra.app.ui.theme.SoftLightGreen
-import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignupScreen(
-    onContinue: () -> Unit = {},
-    viewModel: SignupViewModel = hiltViewModel()
+    onContinue: () -> Unit = {}
 ) {
     var username by remember { mutableStateOf("") }
     var selectedLanguages by remember {
@@ -238,12 +235,7 @@ fun SignupScreen(
 
         // Continue Button
         Button(
-            onClick = {
-                if (username.isNotBlank()) {
-                    viewModel.saveUsername(username)
-                }
-                onContinue()
-            },
+            onClick = onContinue,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
