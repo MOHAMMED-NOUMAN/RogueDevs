@@ -34,9 +34,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -83,7 +83,9 @@ import com.itantra.app.core.transport.LinkStatus
 import com.itantra.app.feature.communication.ui.PairingScreen
 import com.itantra.app.feature.communication.viewmodel.CommunicationUiState
 import com.itantra.app.feature.communication.viewmodel.CommunicationViewModel
+import com.itantra.app.feature.emergency.IncomingSosAlert
 import com.itantra.app.feature.emergency.SOS
+import com.itantra.app.feature.emergency.viewmodel.SosViewModel
 import com.itantra.app.feature.pairing.PairingViewModel
 import com.itantra.app.feature.pairing.linkStatusLabel
 import com.itantra.app.feature.settings.ui.SettingsScreen
@@ -111,7 +113,8 @@ private val NavItems = listOf(
 @Composable
 fun HomeScreen(
     communicationViewModel: CommunicationViewModel = hiltViewModel(),
-    pairingViewModel: PairingViewModel = hiltViewModel()
+    pairingViewModel: PairingViewModel = hiltViewModel(),
+    sosViewModel: SosViewModel = hiltViewModel()
 ) {
     val uiState by communicationViewModel.uiState.collectAsState()
     val incoming by communicationViewModel.incoming.collectAsState()
@@ -141,7 +144,7 @@ fun HomeScreen(
         when (selectedTab) {
             TAB_PAIR -> PairingScreen(viewModel = pairingViewModel)
             TAB_SETTINGS -> SettingsScreen(pairingViewModel = pairingViewModel)
-            TAB_SOS -> SOS(onBack = { selectedTab = TAB_HOME })
+            TAB_SOS -> SOS(onBack = { selectedTab = TAB_HOME }, viewModel = sosViewModel)
             else -> {
                 // Home: status, SOS and push-to-talk only
                 Column(
@@ -201,6 +204,9 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp, vertical = 16.dp)
             )
         }
+
+        // An SOS from the teammate covers every tab until it is answered and closed.
+        IncomingSosAlert(viewModel = sosViewModel)
     }
 }
 

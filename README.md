@@ -18,6 +18,7 @@ Smart India Hackathon 2026 · Problem Statement **26173** · Team **Rogue Devs**
 | Send the text to the paired phone, with delivery status | Working |
 | Profile, speech language, emergency numbers (saved on the phone) | Working |
 | Link notification with live status and Disconnect | Working |
+| SOS: hold 3 s, sends name + GPS location until the teammate answers; loud alarm and "I'm coming" on their phone | Built, needs two-phone test |
 | Read incoming messages aloud (text-to-speech) | Next |
 | QR pairing and encryption (X25519 + AES-256-GCM) | Planned |
 | Team map, organisation feed | In [`backlog/`](backlog/README.md) |
@@ -87,7 +88,7 @@ to upgrade the Android Gradle Plugin, decline; versions are pinned.
 
 | Command | What it does |
 |---|---|
-| `./gradlew testDebugUnitTest` | JVM tests: transport engine, message splitting |
+| `./gradlew testDebugUnitTest` | JVM tests: transport engine, message splitting, SOS packets |
 | `./gradlew assembleTransportDebug` | Debug APK plus the "iTantra transport debug" test screen (`src/transportDebug`) |
 | `adb shell am instrument -w -e class com.itantra.stt.SttBenchmarkTest com.itantra.app.test/androidx.test.runner.AndroidJUnitRunner` | Speech-to-text speed and accuracy on a phone (install the app and test APKs first; report in `adb logcat -s SttBenchmark`) |
 
@@ -103,14 +104,16 @@ app/src/main/java/com/itantra/
 ├── app/
 │   ├── core/
 │   │   ├── audio/          # Push-to-talk microphone recording
+│   │   ├── location/       # GPS position for SOS (Android location service, works offline)
 │   │   ├── messaging/      # Text messages: packet format, splitting, send/receive
 │   │   ├── ml/             # Speech-to-text service (loads the Whisper model)
 │   │   ├── permissions/    # Runtime permissions for the link
 │   │   ├── prefs/          # Saved profile, speech language, emergency numbers
+│   │   ├── sos/            # SOS: send until answered, alarm and alert on the teammate's phone
 │   │   └── transport/      # Offline link: pairing, Wi-Fi Direct, Bluetooth, SOS beacon, service
 │   ├── feature/
 │   │   ├── communication/  # Pair screen, push-to-talk state
-│   │   ├── emergency/      # SOS screen
+│   │   ├── emergency/      # SOS screen and the incoming SOS alert
 │   │   ├── home/           # Home screen and bottom navigation
 │   │   ├── pairing/        # Pairing state and prompts
 │   │   ├── settings/       # Settings screen
@@ -124,7 +127,7 @@ app/src/transportDebug/     # Two-phone link test screen (transportDebug build o
 backlog/                    # Screens kept for later, not built
 ```
 
-Empty folders such as `data/`, `domain/`, `core/location/` and `feature/team/` are placeholders for
+Empty folders such as `data/`, `domain/` and `feature/team/` are placeholders for
 planned work.
 
 ### Toolchain (pinned; change only after team discussion)

@@ -1,5 +1,6 @@
 package com.itantra.app.core.messaging
 
+import com.itantra.app.core.sos.SosCenter
 import com.itantra.app.core.prefs.SpeechLanguage
 import com.itantra.app.core.prefs.UserPreferences
 import com.itantra.app.core.transport.Delivery
@@ -51,11 +52,13 @@ enum class SendStatus {
 /**
  * Text messages to and from the paired teammate over [LinkManager]: splits outgoing text into
  * packets, reassembles incoming ones and keeps the latest [KEEP] received messages in memory.
+ * It is the one reader of the link; SOS packets are handed to [SosCenter].
  */
 @Singleton
 class MessageCenter @Inject constructor(
     private val link: LinkManager,
     private val prefs: UserPreferences,
+    private val sos: SosCenter,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val assembler = MessageAssembler()
@@ -69,6 +72,10 @@ class MessageCenter @Inject constructor(
     init {
         scope.launch {
             link.received.collect { packet ->
+                if (SosCodec.isSos(packet)) {
+                    sos.onPacket(packet)
+                    return@collect
+                }
                 val part = TextMessageCodec.decodePart(packet) ?: return@collect
                 val message = synchronized(assembler) { assembler.add(part, System.currentTimeMillis()) }
                     ?: return@collect

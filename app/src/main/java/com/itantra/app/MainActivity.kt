@@ -1,5 +1,6 @@
 package com.itantra.app
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -22,6 +23,7 @@ class MainActivity : ComponentActivity() {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
         splash.setKeepOnScreenCondition { appStart.startRoute.value == null }
+        showOverLockScreenFor(intent)
         // Every screen has a light background, so the bar icons must stay dark even when the
         // phone is in dark mode (otherwise they turn white and vanish, e.g. on Samsung).
         enableEdgeToEdge(
@@ -34,5 +36,22 @@ class MainActivity : ComponentActivity() {
                 startRoute?.let { ItantraNavGraph(startDestination = it) }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        showOverLockScreenFor(intent)
+    }
+
+    /** An incoming SOS opens the app on top of the lock screen and turns the screen on. */
+    private fun showOverLockScreenFor(intent: Intent?) {
+        val sos = intent?.getBooleanExtra(EXTRA_SOS, false) == true
+        setShowWhenLocked(sos)
+        setTurnScreenOn(sos)
+    }
+
+    companion object {
+        /** Set on the SOS notification's intent. */
+        const val EXTRA_SOS = "com.itantra.app.extra.SOS"
     }
 }

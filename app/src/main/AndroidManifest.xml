@@ -30,17 +30,22 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <!-- Transport: Wi-Fi Direct link. Android 13+ uses NEARBY_WIFI_DEVICES; before that,
-         Wi-Fi Direct (and Bluetooth discovery on 8-11) needs location permission, which is
-         why location stops at API 32. The app never reads the phone's location for this. -->
+         Wi-Fi Direct (and Bluetooth discovery on 8-11) needs location permission.
+         SOS: location is also read (GPS, no network) to send the sender's position. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission
         android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="tiramisu" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
+
+    <!-- SOS alarm on the receiving phone: vibration and a full-screen alert. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- Hold to Talk: records the voice that offline speech-to-text turns into text. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -69,6 +74,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".core.sos.SosActionReceiver"
+            android:exported="false" />
 
         <service
             android:name=".core.transport.TransportService"
