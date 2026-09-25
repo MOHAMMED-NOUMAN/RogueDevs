@@ -55,7 +55,7 @@ pockets:
 
 <a id="features"></a>
 
-
+## <img src="https://api.iconify.design/material-symbols/layers-rounded.svg?color=%2319B878" width="26" align="top" /> &nbsp;Features
 <br/>
 
 <table>
@@ -125,7 +125,7 @@ saved on the phone. A live notification shows the link status.
 
 <a id="how-it-works"></a>
 
-
+## <img src="https://api.iconify.design/material-symbols/hub-rounded.svg?color=%2319B878" width="26" align="top" /> &nbsp;How it works
 <br/>
 
 ### Voice message
@@ -167,7 +167,7 @@ sequenceDiagram
 
 <a id="tech-stack"></a>
 
-
+## <img src="https://api.iconify.design/material-symbols/deployed-code-rounded.svg?color=%2319B878" width="26" align="top" /> &nbsp;Tech stack
 <br/>
 
 | | Technology | Used for |
@@ -193,7 +193,7 @@ sequenceDiagram
 
 <a id="performance"></a>
 
-
+## <img src="https://api.iconify.design/material-symbols/speed-rounded.svg?color=%2319B878" width="26" align="top" /> &nbsp;Performance
 Speech-to-text measured on a **Samsung Galaxy A54** (Exynos 1380, 8 cores), 4-second sentences:
 
 <br/>
@@ -216,7 +216,7 @@ ways, switch to Bluetooth when Wi-Fi drops, and back to Wi-Fi when it returns.
 
 <a id="getting-started"></a>
 
-
+## <img src="https://api.iconify.design/material-symbols/rocket-launch-rounded.svg?color=%2319B878" width="26" align="top" /> &nbsp;Getting started
 <br/>
 
 ### Requirements
@@ -278,7 +278,7 @@ the app and its saved profile afterwards.
 
 <a id="project-structure"></a>
 
-
+## <img src="https://api.iconify.design/material-symbols/folder-open-rounded.svg?color=%2319B878" width="26" align="top" /> &nbsp;Project structure
 ```text
 app/src/main/java/com/itantra/
 ├── app/
