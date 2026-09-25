@@ -1,5 +1,16 @@
 package com.itantra.app.feature.location.ui
 
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.material.icons.rounded.Navigation
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.automirrored.rounded.Send
@@ -76,68 +87,84 @@ data class TeamMemberLocation(
     val mapPercentY: Float
 )
 
+/**
+ * Sample teammates for the demo map (not real data yet). Positions are fractions of the map
+ * panel, with You at the centre; distances roughly match the 200 m / 400 m range rings.
+ */
 val defaultTeamMembers = listOf(
     TeamMemberLocation(
         id = "you",
         name = "You",
-        initials = "YOU",
-        markerColor = Color(0xFF00E5FF), // Cyan
+        initials = "You",
+        markerColor = YouBlue,
         lastSeenText = "Active now",
-        distanceText = "0m",
-        statusDotColor = Color(0xFF4CAF50),
-        mapPercentX = 0.48f,
-        mapPercentY = 0.45f
+        distanceText = "0 m",
+        statusDotColor = ActiveGreen,
+        mapPercentX = 0.50f,
+        mapPercentY = 0.52f
     ),
     TeamMemberLocation(
-        id = "amit",
-        name = "Amit K.",
+        id = "arjun",
+        name = "Arjun R.",
         initials = "A",
-        markerColor = Color(0xFF4CAF50), // Green
+        markerColor = ActiveGreen,
         lastSeenText = "2 min ago",
-        distanceText = "240m away",
-        statusDotColor = Color(0xFF4CAF50),
-        mapPercentX = 0.28f,
+        distanceText = "260 m away",
+        statusDotColor = ActiveGreen,
+        mapPercentX = 0.36f,
+        mapPercentY = 0.36f
+    ),
+    TeamMemberLocation(
+        id = "priya",
+        name = "Priya N.",
+        initials = "P",
+        markerColor = ActiveGreen,
+        lastSeenText = "4 min ago",
+        distanceText = "400 m away",
+        statusDotColor = ActiveGreen,
+        mapPercentX = 0.73f,
         mapPercentY = 0.30f
     ),
     TeamMemberLocation(
-        id = "rhea",
-        name = "Rhea S.",
-        initials = "R",
-        markerColor = Color(0xFF4CAF50), // Green
-        lastSeenText = "4 min ago",
-        distanceText = "480m away",
-        statusDotColor = Color(0xFF4CAF50),
-        mapPercentX = 0.74f,
-        mapPercentY = 0.25f
-    ),
-    TeamMemberLocation(
-        id = "zain",
-        name = "Zain M.",
-        initials = "Z",
-        markerColor = Color(0xFFFF9800), // Orange
+        id = "imran",
+        name = "Imran S.",
+        initials = "I",
+        markerColor = RecentOrange,
         lastSeenText = "14 min ago",
-        distanceText = "1.2km away",
-        statusDotColor = Color(0xFFFF9800),
-        mapPercentX = 0.22f,
-        mapPercentY = 0.64f
+        distanceText = "410 m away",
+        statusDotColor = RecentOrange,
+        mapPercentX = 0.26f,
+        mapPercentY = 0.74f
     ),
     TeamMemberLocation(
-        id = "oli",
-        name = "Oli T.",
-        initials = "O",
-        markerColor = Color(0xFF9E9E9E), // Gray
+        id = "kavya",
+        name = "Kavya M.",
+        initials = "K",
+        markerColor = InactiveGrey,
         lastSeenText = "35 min ago",
-        distanceText = "3.5km away",
-        statusDotColor = Color(0xFF9E9E9E),
-        mapPercentX = 0.78f,
-        mapPercentY = 0.74f
+        distanceText = "500 m away",
+        statusDotColor = InactiveGrey,
+        mapPercentX = 0.80f,
+        mapPercentY = 0.78f
     )
 )
+
+private val YouBlue get() = Color(0xFF2F6FED)
+private val ActiveGreen get() = Color(0xFF3FA34D)
+private val RecentOrange get() = Color(0xFFF08C00)
+private val InactiveGrey get() = Color(0xFF9AA3A0)
+
+// Offline map palette: quiet land, water and parks so the team markers stand out.
+private val MapLand = Color(0xFFF1F3EE)
+private val MapPark = Color(0xFFDDEBD6)
+private val MapWater = Color(0xFFCFE1EA)
+private val MapRoad = Color.White
+private val MapRoadCasing = Color(0xFFDCE1DA)
 
 @Composable
 fun LocationScreen() {
     var selectedViewMode by remember { mutableStateOf("Map") }
-    var selectedMember by remember { mutableStateOf(defaultTeamMembers[1]) } // Amit K. selected by default
+    var selectedMember by remember { mutableStateOf(defaultTeamMembers[1]) } // first teammate selected by default
 
     Box(
         modifier = Modifier
@@ -340,7 +367,8 @@ private fun MapListToggleSection(
     }
 }
 /**
- * 3. Large Map Panel Section (Dark Grid with 5 markers + curved blue route line)
+ * 3. Offline team map: land, water, parks and roads drawn in place (no tiles), range rings
+ * around You, a dashed line to the selected teammate, compass and scale bar.
  */
 @Composable
 private fun LargeMapPanelSection(
@@ -348,83 +376,244 @@ private fun LargeMapPanelSection(
     selectedMember: TeamMemberLocation,
     onMemberSelected: (TeamMemberLocation) -> Unit
 ) {
-    Card(
+    val shape = RoundedCornerShape(24.dp)
+    val you = teamMembers.first { it.id == "you" }
+    val pulse = rememberInfiniteTransition(label = "youPulse").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart),
+        label = "youPulseProgress"
+    )
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(290.dp)
-            .shadow(6.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)), // Dark slate grid background
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            .height(300.dp)
+            .shadow(3.dp, shape, ambientColor = DeepDarkGreen.copy(alpha = 0.12f), spotColor = DeepDarkGreen.copy(alpha = 0.12f))
+            .clip(shape)
+            .background(MapLand)
+            .border(1.dp, GrayBorder, shape)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Canvas for Dark Grid & Curved Blue Route/Terrain Line
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val gridColor = Color(0xFF334155).copy(alpha = 0.6f)
-                val gridSpacing = 40.dp.toPx()
+        val mapWidth = maxWidth
+        val mapHeight = maxHeight
+        val ringStep = 52.dp // 200 m
 
-                // Draw vertical grid lines
-                var x = gridSpacing
-                while (x < size.width) {
-                    drawLine(
-                        color = gridColor,
-                        start = Offset(x, 0f),
-                        end = Offset(x, size.height),
-                        strokeWidth = 1f
-                    )
-                    x += gridSpacing
-                }
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawOfflineMapBase()
 
-                // Draw horizontal grid lines
-                var y = gridSpacing
-                while (y < size.height) {
-                    drawLine(
-                        color = gridColor,
-                        start = Offset(0f, y),
-                        end = Offset(size.width, y),
-                        strokeWidth = 1f
-                    )
-                    y += gridSpacing
-                }
+            val center = Offset(size.width * you.mapPercentX, size.height * you.mapPercentY)
+            val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx()))
 
-                // Curved Blue Route / Terrain Line near the bottom
-                val path = Path().apply {
-                    moveTo(0f, size.height * 0.78f)
-                    cubicTo(
-                        size.width * 0.3f, size.height * 0.65f,
-                        size.width * 0.65f, size.height * 0.92f,
-                        size.width, size.height * 0.72f
-                    )
-                }
-                drawPath(
-                    path = path,
-                    color = Color(0xFF38BDF8), // Curved blue line
-                    style = Stroke(width = 4.5f)
+            // Range rings: 200 m and 400 m
+            for (ring in 1..2) {
+                drawCircle(
+                    color = DeepDarkGreen.copy(alpha = 0.22f),
+                    radius = ringStep.toPx() * ring,
+                    center = center,
+                    style = Stroke(width = 1.2.dp.toPx(), pathEffect = dash)
                 )
             }
 
-            // Render 5 Team Markers
-            teamMembers.forEach { member ->
-                val isSelected = member.id == selectedMember.id
+            // Line to the selected teammate
+            if (selectedMember.id != you.id) {
+                drawLine(
+                    color = DeepDarkGreen.copy(alpha = 0.7f),
+                    start = center,
+                    end = Offset(size.width * selectedMember.mapPercentX, size.height * selectedMember.mapPercentY),
+                    strokeWidth = 2.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 5.dp.toPx())),
+                    cap = StrokeCap.Round
+                )
+            }
 
-                InteractiveMapMarker(
-                    member = member,
-                    isSelected = isSelected,
-                    onClick = { onMemberSelected(member) },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(
-                            x = (member.mapPercentX * 280).dp, // offset based on container scale
-                            y = (member.mapPercentY * 230).dp
-                        )
+            // You: accuracy halo that ripples out, then the blue dot
+            val t = pulse.value
+            drawCircle(
+                color = YouBlue.copy(alpha = 0.22f * (1f - t)),
+                radius = 10.dp.toPx() + 22.dp.toPx() * t,
+                center = center
+            )
+            drawCircle(color = Color.White, radius = 10.dp.toPx(), center = center)
+            drawCircle(color = YouBlue, radius = 7.dp.toPx(), center = center)
+        }
+
+        // Ring labels, on the right of each ring
+        for (ring in 1..2) {
+            RingLabel(
+                text = "${ring * 200} m",
+                modifier = Modifier.offset(
+                    x = mapWidth * you.mapPercentX + ringStep * ring - 18.dp,
+                    y = mapHeight * you.mapPercentY - 9.dp
+                )
+            )
+        }
+
+        // "You" label under the dot
+        MapNameChip(
+            text = "You",
+            selected = false,
+            modifier = Modifier
+                .width(64.dp)
+                .offset(x = mapWidth * you.mapPercentX - 32.dp, y = mapHeight * you.mapPercentY + 13.dp)
+        )
+
+        // Teammates
+        teamMembers.filter { it.id != you.id }.forEach { member ->
+            InteractiveMapMarker(
+                member = member,
+                isSelected = member.id == selectedMember.id,
+                onClick = { onMemberSelected(member) },
+                modifier = Modifier.offset(
+                    x = mapWidth * member.mapPercentX - MarkerWidth / 2,
+                    y = mapHeight * member.mapPercentY - MarkerPinRadius
+                )
+            )
+        }
+
+        // Compass
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(12.dp)
+                .size(36.dp),
+            shape = CircleShape,
+            color = Color.White,
+            border = androidx.compose.foundation.BorderStroke(1.dp, GrayBorder)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Navigation,
+                    contentDescription = "North",
+                    tint = Color(0xFFD32F2F),
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "N",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepDarkGreen
+                )
+            }
+        }
+
+        // Scale bar
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(12.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = Color.White.copy(alpha = 0.92f)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Canvas(modifier = Modifier.size(width = ringStep, height = 8.dp)) {
+                    val y = size.height / 2
+                    val stroke = 2.dp.toPx()
+                    drawLine(DeepDarkGreen, Offset(0f, y), Offset(size.width, y), stroke)
+                    drawLine(DeepDarkGreen, Offset(0f, 0f), Offset(0f, size.height), stroke)
+                    drawLine(DeepDarkGreen, Offset(size.width, 0f), Offset(size.width, size.height), stroke)
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "200 m",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DeepDarkGreen
                 )
             }
         }
     }
 }
 
+/** Parks, a river and a road grid, as fractions of the panel so every screen size matches. */
+private fun DrawScope.drawOfflineMapBase() {
+    val w = size.width
+    val h = size.height
+
+    // Parks
+    drawRoundRect(
+        color = MapPark,
+        topLeft = Offset(w * 0.06f, h * 0.07f),
+        size = Size(w * 0.24f, h * 0.20f),
+        cornerRadius = CornerRadius(18.dp.toPx())
+    )
+    drawOval(
+        color = MapPark,
+        topLeft = Offset(w * 0.60f, h * 0.54f),
+        size = Size(w * 0.30f, h * 0.18f)
+    )
+
+    // River
+    val river = Path().apply {
+        moveTo(-20f, h * 0.60f)
+        cubicTo(w * 0.30f, h * 0.50f, w * 0.55f, h * 0.98f, w + 20f, h * 0.86f)
+    }
+    drawPath(river, MapWater, style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round))
+
+    // Roads: light casing under a white fill, major then minor
+    fun road(from: Offset, to: Offset, width: Float) {
+        drawLine(MapRoadCasing, from, to, width + 2.dp.toPx(), cap = StrokeCap.Round)
+        drawLine(MapRoad, from, to, width, cap = StrokeCap.Round)
+    }
+    val major = 7.dp.toPx()
+    val minor = 3.5.dp.toPx()
+    road(Offset(0f, h * 0.44f), Offset(w, h * 0.40f), major)
+    road(Offset(w * 0.58f, 0f), Offset(w * 0.54f, h), major)
+    road(Offset(w * 0.08f, h), Offset(w * 0.44f, 0f), minor)
+    road(Offset(w * 0.54f, h * 0.20f), Offset(w, h * 0.22f), minor)
+    road(Offset(0f, h * 0.30f), Offset(w * 0.40f, h * 0.28f), minor)
+    road(Offset(w * 0.20f, h * 0.44f), Offset(w * 0.18f, h * 0.62f), minor)
+    road(Offset(w * 0.56f, h * 0.66f), Offset(w, h * 0.64f), minor)
+}
+
+private val MarkerWidth = 76.dp
+private val MarkerPinRadius = 15.dp
+
+@Composable
+private fun RingLabel(text: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(6.dp),
+        color = MapLand.copy(alpha = 0.9f)
+    ) {
+        Text(
+            text = text,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = DeepDarkGreen.copy(alpha = 0.6f),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+        )
+    }
+}
+
+@Composable
+private fun MapNameChip(text: String, selected: Boolean, modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.TopCenter) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = if (selected) DeepDarkGreen else Color.White,
+            border = if (selected) null else androidx.compose.foundation.BorderStroke(1.dp, GrayBorder)
+        ) {
+            Text(
+                text = text,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selected) Color.White else DeepDarkGreen,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
 /**
- * Interactive Map Marker with Name Tag Above
+ * Teammate marker: initials in a status-coloured pin (centred on the teammate's position),
+ * name underneath. The selected teammate gets a ring and a dark name chip.
  */
 @Composable
 private fun InteractiveMapMarker(
@@ -434,45 +623,30 @@ private fun InteractiveMapMarker(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null
-        ) { onClick() },
+        modifier = modifier
+            .width(MarkerWidth)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Name Tag Above Marker
-        Surface(
-            shape = RoundedCornerShape(6.dp),
-            color = if (isSelected) member.markerColor else Color(0xFF0F172A).copy(alpha = 0.85f),
-            border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, Color.White) else null,
-            shadowElevation = 3.dp
+        Box(
+            modifier = Modifier.size(MarkerPinRadius * 2),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = member.name,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isSelected && member.markerColor == Color(0xFF00E5FF)) Color.Black else Color.White,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        // Circular Marker Pin
-        Box(contentAlignment = Alignment.Center) {
-            // Glow aura for selected pin
             if (isSelected) {
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(MarkerPinRadius * 2)
                         .clip(CircleShape)
-                        .background(member.markerColor.copy(alpha = 0.35f))
+                        .background(member.markerColor.copy(alpha = 0.25f))
                 )
             }
-
             Box(
                 modifier = Modifier
-                    .size(26.dp)
+                    .size(if (isSelected) 26.dp else 24.dp)
+                    .shadow(2.dp, CircleShape)
                     .clip(CircleShape)
                     .background(member.markerColor)
                     .border(2.dp, Color.White, CircleShape),
@@ -480,12 +654,16 @@ private fun InteractiveMapMarker(
             ) {
                 Text(
                     text = member.initials,
-                    fontSize = 9.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (member.markerColor == Color(0xFF00E5FF)) Color.Black else Color.White
+                    color = Color.White
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        MapNameChip(text = member.name, selected = isSelected)
     }
 }
 
@@ -507,7 +685,7 @@ private fun MapLegendSection() {
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF4CAF50))
+                    .background(ActiveGreen)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
@@ -524,7 +702,7 @@ private fun MapLegendSection() {
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFFF9800))
+                    .background(RecentOrange)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
@@ -541,7 +719,7 @@ private fun MapLegendSection() {
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF9E9E9E))
+                    .background(InactiveGrey)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
@@ -599,7 +777,7 @@ private fun TeamListViewSection(
                             text = member.initials,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (member.markerColor == Color(0xFF00E5FF)) Color.Black else Color.White
+                            color = Color.White
                         )
                     }
 
@@ -664,7 +842,7 @@ private fun SelectedMemberCardSection(member: TeamMemberLocation) {
                         text = member.initials,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (member.markerColor == Color(0xFF00E5FF)) Color.Black else Color.White
+                        color = Color.White
                     )
                 }
 

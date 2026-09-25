@@ -167,9 +167,6 @@ fun PairingScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
-
-            QrComingSoonNote()
 
         } else {
             OrganisationFeedContent()
@@ -646,46 +643,6 @@ private fun ComingSoonChip() {
             letterSpacing = 1.sp,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
         )
-    }
-}
-
-@Composable
-private fun QrComingSoonNote() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, GrayBorder)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "QR PAIRING · COMING SOON",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = SecondaryText,
-                letterSpacing = 1.sp
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "Scan-to-Trust",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeepDarkGreen
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "One QR scan will join a teammate and exchange encryption keys " +
-                    "(X25519). Every message after that is sealed with AES-256-GCM, and " +
-                    "replayed messages are dropped. Until then, pair with the 4-digit code.",
-                fontSize = 12.sp,
-                color = SecondaryText,
-                lineHeight = 18.sp
-            )
-        }
     }
 }
 
