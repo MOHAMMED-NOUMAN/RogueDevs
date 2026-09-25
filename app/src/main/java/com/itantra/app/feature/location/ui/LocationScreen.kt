@@ -1,5 +1,10 @@
 package com.itantra.app.feature.location.ui
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.Directions
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -22,9 +27,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -156,6 +158,11 @@ fun LocationScreen() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Team alerts (moved here from Home)
+            PriorityAlertSection()
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // 2. Map / List Toggle
             MapListToggleSection(
                 selectedMode = selectedViewMode,
@@ -246,7 +253,7 @@ private fun LocationHeaderSection() {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Refresh,
+                imageVector = Icons.Rounded.Refresh,
                 contentDescription = "Sync",
                 tint = DeepDarkGreen,
                 modifier = Modifier.size(20.dp)
@@ -301,6 +308,7 @@ private fun MapListToggleSection(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxSize()
+                        .clip(RoundedCornerShape(50))
                         .clickable { onModeSelected("Map") },
                     contentAlignment = Alignment.Center
                 ) {
@@ -316,6 +324,7 @@ private fun MapListToggleSection(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxSize()
+                        .clip(RoundedCornerShape(50))
                         .clickable { onModeSelected("List") },
                     contentAlignment = Alignment.Center
                 ) {
@@ -425,7 +434,10 @@ private fun InteractiveMapMarker(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.clickable { onClick() },
+        modifier = modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null
+        ) { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Name Tag Above Marker
@@ -561,6 +573,7 @@ private fun TeamListViewSection(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable { onMemberSelected(member) },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
@@ -694,7 +707,7 @@ private fun SelectedMemberCardSection(member: TeamMemberLocation) {
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Send,
+                        imageVector = Icons.AutoMirrored.Rounded.Send,
                         contentDescription = "Message",
                         modifier = Modifier.size(16.dp)
                     )
@@ -719,7 +732,7 @@ private fun SelectedMemberCardSection(member: TeamMemberLocation) {
                     border = androidx.compose.foundation.BorderStroke(1.dp, DeepDarkGreen)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowForward,
+                        imageVector = Icons.Rounded.Directions,
                         contentDescription = "Directions",
                         tint = DeepDarkGreen,
                         modifier = Modifier.size(16.dp)
@@ -765,3 +778,67 @@ private fun LocationFooterSection() {
 fun LocationScreenPreview() {
     LocationScreen()
 }
+
+/**
+ * Priority alert from the team
+ */
+@Composable
+private fun PriorityAlertSection() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4F2)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFCCBC))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFEBEE)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Warning,
+                    contentDescription = "Alert",
+                    tint = Color(0xFFD32F2F),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "PRIORITY ALERT",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD32F2F),
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "2m ago",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Perimeter check requested by Team Alpha",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.DarkGray
+                )
+            }
+        }
+    }
+}
+

@@ -1,5 +1,10 @@
 package com.itantra.app.feature.emergency
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -111,13 +116,15 @@ fun SOS(
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-            Text(
-                text = "‹",
-                fontSize = 32.sp,
-                color = textColor,
-                modifier = Modifier.clickable {
-                    onBack()
-                }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
+                tint = textColor,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .clickable { onBack() }
+                    .padding(8.dp)
             )
 
             Text(
@@ -127,11 +134,11 @@ fun SOS(
                 color = textColor
             )
 
-            Text(
-                text = "!",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = textColor
+            Icon(
+                imageVector = Icons.Rounded.Warning,
+                contentDescription = null,
+                tint = textColor,
+                modifier = Modifier.size(24.dp)
             )
         }
 
@@ -190,10 +197,8 @@ fun SOS(
                         modifier = Modifier
                             .size(180.dp)
                             .scale(pulseScale)
-                            .background(
-                                color = buttonColor,
-                                shape = CircleShape
-                            )
+                            .clip(CircleShape)
+                            .background(buttonColor)
                             .clickable {
                                 sosActivated = !sosActivated
                             },

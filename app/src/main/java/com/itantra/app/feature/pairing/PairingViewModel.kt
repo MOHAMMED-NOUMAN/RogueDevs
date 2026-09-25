@@ -19,7 +19,7 @@ class PairingViewModel @Inject constructor(
     val linkStatus: StateFlow<LinkStatus> = linkManager.linkStatus
     val linkRunning: StateFlow<Boolean> = linkManager.linkRunning
 
-    /** The code this phone shows while hosting; new each time the screen is opened. */
+    /** The code this phone shows while hosting; new each time the app is opened. */
     val hostCode: String = LinkManager.newPairingCode()
 
     fun host() = linkManager.host(hostCode)
@@ -32,4 +32,6 @@ class PairingViewModel @Inject constructor(
 
     /** Brings the link up if this phone is paired and it isn't running yet. */
     fun ensureLinkRunning() = linkManager.startLink()
+
+    fun stopLink() = linkManager.stopLink()
 }

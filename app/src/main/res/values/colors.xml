@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#1A237E</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Matches OffWhite in ui/theme/Color.kt: the window and splash background. -->
+    <color name="window_background">#F7F9F7</color>
 </resources>

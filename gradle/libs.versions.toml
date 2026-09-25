@@ -9,6 +9,7 @@ composeBom                 = "2025.09.00"      # Compose 1.10.x — safe for com
 
 # ── AndroidX ─────────────────────────────────────────────────────────
 activityCompose            = "1.10.1"
+coreSplashscreen           = "1.0.1"
 lifecycleViewmodelCompose  = "2.9.0"
 
 # ── Navigation ───────────────────────────────────────────────────────
@@ -54,6 +55,8 @@ androidx-material3                 = { group = "androidx.compose.material3", nam
 
 # Activity + Lifecycle
 androidx-activity-compose          = { group = "androidx.activity",          name = "activity-compose",           version.ref = "activityCompose" }
+androidx-core-splashscreen         = { group = "androidx.core",              name = "core-splashscreen",          version.ref = "coreSplashscreen" }
+androidx-material-icons-extended   = { group = "androidx.compose.material",  name = "material-icons-extended"                                     }
 lifecycle-viewmodel-compose        = { group = "androidx.lifecycle",         name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
 
 # Navigation

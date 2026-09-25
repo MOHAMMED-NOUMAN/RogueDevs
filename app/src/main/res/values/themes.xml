@@ -2,11 +2,19 @@
 <resources>
     <!--
         Window-level theme applied before Compose takes over the window.
-        Using Theme.AppCompat.Light.NoActionBar keeps the splash window
-        background clean; the Compose ItantraTheme handles everything else.
+        The app is light-only: every screen paints a light background, so the
+        status and navigation bar icons are always dark.
     -->
     <style name="Theme.Itantra" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/ic_launcher_background</item>
+        <item name="android:windowBackground">@color/window_background</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <!-- Launch theme: shows the iTantra mark until the saved profile has loaded. -->
+    <style name="Theme.Itantra.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/window_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.Itantra</item>
     </style>
 </resources>

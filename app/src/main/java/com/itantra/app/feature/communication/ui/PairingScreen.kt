@@ -1,4 +1,18 @@
 package com.itantra.app.feature.communication.ui
+import com.itantra.app.core.transport.LinkStatus
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.BluetoothSearching
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -99,9 +113,12 @@ fun PairingScreen(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        if (pairing is PairingState.Paired) {
+        val paired = pairing as? PairingState.Paired
+        if (paired != null) {
             PairedCard(
+                address = paired.peer.address,
                 status = linkStatusLabel(pairing, linkRunning, linkStatus),
+                connected = linkStatus is LinkStatus.Connected,
                 onForget = viewModel::forget
             )
             Spacer(modifier = Modifier.height(14.dp))
@@ -166,9 +183,12 @@ fun PairingScreen(
 
 @Composable
 private fun PairedCard(
+    address: String,
     status: String,
+    connected: Boolean,
     onForget: () -> Unit
 ) {
+    val avatarColor = if (connected) PrimaryGreen else SecondaryText
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -179,6 +199,24 @@ private fun PairedCard(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(avatarColor.copy(alpha = 0.10f))
+                    .border(1.5.dp, avatarColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.PhoneAndroid,
+                    contentDescription = null,
+                    tint = avatarColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "PAIRED TEAMMATE",
@@ -195,6 +233,14 @@ private fun PairedCard(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepDarkGreen
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = "Teammate phone …${address.takeLast(5)}",
+                    fontSize = 11.sp,
+                    color = SecondaryText
                 )
             }
 
@@ -341,12 +387,16 @@ private fun MyCodeContent(
                     .padding(18.dp),
                 contentAlignment = Alignment.Center
             ) {
-                FakeQrCode(
-                    modifier = Modifier
-                        .size(205.dp)
-                        .alpha(0.12f)
-                )
-                ComingSoonChip()
+                if (hosting) {
+                    SearchingPulse(modifier = Modifier.size(205.dp))
+                } else {
+                    FakeQrCode(
+                        modifier = Modifier
+                            .size(205.dp)
+                            .alpha(0.12f)
+                    )
+                    ComingSoonChip()
+                }
             }
         }
 
@@ -431,11 +481,11 @@ private fun MyCodeContent(
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "✓",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryGreen
+            Icon(
+                imageVector = Icons.Rounded.CheckCircle,
+                contentDescription = null,
+                tint = PrimaryGreen,
+                modifier = Modifier.size(16.dp)
             )
 
             Spacer(modifier = Modifier.width(6.dp))
@@ -467,6 +517,11 @@ private fun EnterCodeContent(
             .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+
+        if (joining) {
+            SearchingPulse(modifier = Modifier.size(180.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         Text(
             text = "Enter teammate's code",
@@ -519,6 +574,55 @@ private fun EnterCodeContent(
                 filled = true,
                 enabled = code.length == 4,
                 onClick = { onJoin(code) }
+            )
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Searching animation: rings ripple out from a Bluetooth icon at the centre
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun SearchingPulse(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "searching")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ripple"
+    )
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val maxRadius = size.minDimension / 2
+            val minRadius = 30.dp.toPx()
+            // Three rings a third of a cycle apart, each growing and fading out.
+            repeat(3) { ring ->
+                val t = (progress + ring / 3f) % 1f
+                drawCircle(
+                    color = PrimaryGreen.copy(alpha = 0.35f * (1f - t)),
+                    radius = minRadius + (maxRadius - minRadius) * t,
+                    style = Stroke(width = 2.dp.toPx())
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(PrimaryGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.BluetoothSearching,
+                contentDescription = "Searching",
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
             )
         }
     }
