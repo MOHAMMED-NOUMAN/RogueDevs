@@ -1,5 +1,6 @@
 package com.itantra.app.feature.location.ui
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -140,6 +141,7 @@ fun LocationScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
+            .statusBarsPadding()
     ) {
         Column(
             modifier = Modifier

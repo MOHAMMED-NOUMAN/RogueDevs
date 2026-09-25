@@ -1,5 +1,6 @@
 package com.itantra.app.feature.home.ui
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.animation.core.FastOutSlowInEasing
 import com.itantra.app.feature.communication.ui.PairingScreen
 import com.itantra.app.feature.emergency.SOS
@@ -143,6 +144,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .statusBarsPadding()
                         .padding(bottom = 90.dp) // Leave room for floating bottom nav
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp, vertical = 24.dp),

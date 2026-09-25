@@ -1,5 +1,6 @@
 package com.itantra.app.feature.emergency
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -95,6 +96,7 @@ fun SOS(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
+            .statusBarsPadding()
     ) {
 
         // Header
