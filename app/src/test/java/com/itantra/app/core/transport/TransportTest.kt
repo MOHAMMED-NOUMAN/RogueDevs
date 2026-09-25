@@ -3,7 +3,6 @@ package com.itantra.app.core.transport
 import com.itantra.app.core.transport.LinkKind.RFCOMM
 import com.itantra.app.core.transport.LinkKind.WIFI_DIRECT
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy

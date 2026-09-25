@@ -148,6 +148,8 @@ itantra/
 │           └── ui/
 │               └── theme/           # Shared Jetpack Compose theme
 │
+├── backlog/                        # Screens kept for later, not built (see backlog/README.md)
+│
 ├── ml-models/
 │   ├── stt/                        # Offline Speech-to-Text models
 │   └── tts/                        # Offline Text-to-Speech models
@@ -165,16 +167,16 @@ itantra/
 
 ## Core Communication — MVP
 
-* [ ] Android application setup
+* [x] Android application setup
 * [ ] Push-to-Talk communication
 * [ ] Voice recording
 * [ ] Offline Speech-to-Text (STT)
 * [ ] Detect speech pauses/stops
 * [ ] Convert speech into complete sentences
 * [ ] Convert text into low-bandwidth message
-* [ ] Device-to-device text transmission
-* [ ] Bluetooth communication
-* [ ] Wi-Fi Direct communication
+* [x] Device-to-device text transmission
+* [x] Bluetooth communication
+* [x] Wi-Fi Direct communication
 * [ ] Offline Text-to-Speech (TTS)
 * [ ] Audio playback
 * [ ] End-to-end voice → text → transmission → text → voice flow
@@ -203,8 +205,8 @@ itantra/
 * [ ] Optimize CPU usage
 * [ ] Optimize battery usage
 * [ ] Test on low/mid-range Android devices
-* [ ] Handle Bluetooth disconnection/reconnection
-* [ ] Handle Wi-Fi Direct connection failures
+* [x] Handle Bluetooth disconnection/reconnection
+* [x] Handle Wi-Fi Direct connection failures
 * [ ] Handle poor/unstable connections
 * [ ] Handle offline operation reliably
 
