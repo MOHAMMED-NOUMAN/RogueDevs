@@ -12,7 +12,10 @@
             android:name=".debug.TransportDebugActivity"
             android:exported="true"
             android:label="iTantra transport debug"
+            android:taskAffinity="com.itantra.app.transportdebug"
             android:theme="@style/Theme.Itantra">
+            <!-- Own task: with the app's default affinity, tapping this icon while the main app
+                 is open only brings the main app's task back to the front. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
