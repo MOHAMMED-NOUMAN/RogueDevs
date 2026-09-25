@@ -1,28 +1,41 @@
 package com.itantra.app.feature.signup.ui
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.itantra.app.ui.theme.DeepDarkGreen
 import com.itantra.app.ui.theme.GrayBorder
 import com.itantra.app.ui.theme.SoftLightGreen
+import kotlinx.coroutines.launch
 
 /** Languages offered as the user's preferred languages. */
 val IndianLanguages = listOf(
@@ -39,23 +53,19 @@ val IndianLanguages = listOf(
     "Maithili", "Sindhi"
 )
 
-private val SelectedRow = Color(0xFFE8F0E9)
-
-/** Multi-select dropdown of [IndianLanguages]; stays open while languages are toggled. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Field showing the chosen languages; tapping it opens a bottom sheet to tick one or more.
+ * (A dropdown kept open for multi-select re-measured and moved on every tick, which jittered.)
+ */
 @Composable
 fun LanguagePicker(
     selected: Set<String>,
     onSelectedChange: (Set<String>) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var sheetOpen by remember { mutableStateOf(false) }
 
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = modifier.fillMaxWidth()
-    ) {
+    Box(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = when {
                 selected.isEmpty() -> ""
@@ -70,11 +80,15 @@ fun LanguagePicker(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium
             ),
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = Color.Gray
+                )
+            },
             singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = DeepDarkGreen,
@@ -85,39 +99,108 @@ fun LanguagePicker(
                 focusedContainerColor = Color.White
             )
         )
+        // A read-only text field swallows taps, so a transparent layer on top opens the sheet.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(RoundedCornerShape(24.dp))
+                .clickable(role = Role.Button) { sheetOpen = true }
+        )
+    }
 
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            containerColor = Color.White,
-            modifier = Modifier.heightIn(max = 320.dp)
-        ) {
-            IndianLanguages.forEach { language ->
-                val isSelected = language in selected
-                DropdownMenuItem(
-                    text = {
+    if (sheetOpen) {
+        LanguagePickerSheet(
+            selected = selected,
+            onToggle = { language ->
+                onSelectedChange(if (language in selected) selected - language else selected + language)
+            },
+            onDismiss = { sheetOpen = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LanguagePickerSheet(
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Preferred languages",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeepDarkGreen,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+            Text(
+                text = if (selected.isEmpty()) "Choose one or more" else "${selected.size} selected",
+                fontSize = 13.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 2.dp, bottom = 8.dp)
+            )
+            HorizontalDivider(color = GrayBorder)
+
+            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                items(IndianLanguages, key = { it }) { language ->
+                    val checked = language in selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .toggleable(
+                                value = checked,
+                                role = Role.Checkbox,
+                                onValueChange = { onToggle(language) }
+                            )
+                            .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
                             text = language,
-                            color = DeepDarkGreen,
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal,
+                            color = DeepDarkGreen,
+                            modifier = Modifier.weight(1f)
                         )
-                    },
-                    trailingIcon = {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = "Selected",
-                                tint = DeepDarkGreen,
-                                modifier = Modifier.size(20.dp)
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = null, // the whole row toggles
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = DeepDarkGreen,
+                                uncheckedColor = Color.Gray
                             )
-                        }
-                    },
-                    onClick = {
-                        onSelectedChange(if (isSelected) selected - language else selected + language)
-                    },
-                    modifier = Modifier.background(if (isSelected) SelectedRow else Color.White)
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = GrayBorder)
+            Button(
+                onClick = {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                    .height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DeepDarkGreen,
+                    contentColor = Color.White
                 )
+            ) {
+                Text("Done", fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
