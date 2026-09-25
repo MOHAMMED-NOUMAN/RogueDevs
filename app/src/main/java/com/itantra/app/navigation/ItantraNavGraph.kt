@@ -56,12 +56,7 @@ fun ItantraNavGraph(
         }
         composable(Screen.Nearby.route) {
             NearbyDevicesScreen(
-                onPairViaQr = {
-                    // QR navigation will be connected later
-                },
-                onConnect = { deviceName ->
-                    // Bluetooth connection will be connected later
-                }
+                onPairViaQr = { navController.navigate(Screen.Pairing.route) }
             )
         }
     }

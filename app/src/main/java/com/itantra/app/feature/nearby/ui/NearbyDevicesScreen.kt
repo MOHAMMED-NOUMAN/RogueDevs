@@ -29,13 +29,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.itantra.app.core.transport.LinkStatus
+import com.itantra.app.core.transport.PairingState
+import com.itantra.app.feature.pairing.PairingViewModel
+import com.itantra.app.feature.pairing.linkStatusLabel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,10 +70,13 @@ private val MutedText = Color(0xFF9AA6A1)
 
 @Composable
 fun NearbyDevicesScreen(
-    onPairViaQr: () -> Unit = {},
-    onConnect: (String) -> Unit = {}
+    viewModel: PairingViewModel = hiltViewModel(),
+    onPairViaQr: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
+    val pairing by viewModel.pairing.collectAsState()
+    val linkRunning by viewModel.linkRunning.collectAsState()
+    val linkStatus by viewModel.linkStatus.collectAsState()
 
     Column(
         modifier = Modifier
@@ -86,16 +93,23 @@ fun NearbyDevicesScreen(
         // Header
         NearbyHeader()
 
+        // Bluetooth scanning animation, only while pairing is actually looking
+        val searching = when (pairing) {
+            is PairingState.Hosting -> "Waiting for teammate to join..."
+            is PairingState.Joining -> "Looking for teammate..."
+            else -> null
+        }
+        if (searching != null) {
+            Spacer(modifier = Modifier.height(26.dp))
+            BluetoothScanner(label = searching)
+        }
+
         Spacer(modifier = Modifier.height(26.dp))
 
-        // Bluetooth scanning animation
-        BluetoothScanner()
+        val paired = pairing as? PairingState.Paired
 
-        Spacer(modifier = Modifier.height(26.dp))
-
-        // Found devices label
         Text(
-            text = "4 DEVICES FOUND",
+            text = if (paired != null) "PAIRED TEAMMATE" else "NO TEAMMATE PAIRED YET",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.1.sp,
@@ -104,52 +118,17 @@ fun NearbyDevicesScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Device list
-        DeviceCard(
-            initial = "R",
-            name = "Rhea's Phone",
-            distance = "8 m away",
-            signal = SignalStrength.STRONG,
-            avatarColor = PrimaryGreen,
-            onConnect = { onConnect("Rhea's Phone") }
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        DeviceCard(
-            initial = "Z",
-            name = "Zain — Relief Camp",
-            distance = "22 m away",
-            signal = SignalStrength.STRONG,
-            avatarColor = PrimaryGreen,
-            onConnect = { onConnect("Zain — Relief Camp") }
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        DeviceCard(
-            initial = "U",
-            name = "Unknown Device",
-            distance = "40 m away",
-            signal = SignalStrength.WEAK,
-            avatarColor = Color(0xFF8A9A94),
-            onConnect = { onConnect("Unknown Device") }
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        DeviceCard(
-            initial = "N",
-            name = "NDRF Unit 07",
-            distance = "55 m away",
-            signal = SignalStrength.MEDIUM,
-            avatarColor = Cyan,
-            onConnect = { onConnect("NDRF Unit 07") }
-        )
+        if (paired != null) {
+            TeammateCard(
+                address = paired.peer.address,
+                status = linkStatusLabel(pairing, linkRunning, linkStatus),
+                connected = linkStatus is LinkStatus.Connected
+            )
+        }
 
         Spacer(modifier = Modifier.height(26.dp))
 
-        // QR fallback
+        // Go to pairing
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -159,19 +138,16 @@ fun NearbyDevicesScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Can't see a device? ",
+                text = if (paired != null) "New teammate? " else "Not paired yet? ",
                 fontSize = 13.sp,
                 color = SecondaryText
             )
 
             Text(
-                text = "Pair via QR instead ›",
+                text = "Pair with a code ›",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = PrimaryGreen,
-                modifier = Modifier.clickable {
-                    onPairViaQr()
-                }
+                color = PrimaryGreen
             )
         }
 
@@ -196,7 +172,7 @@ private fun NearbyHeader() {
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "Bluetooth discovery",
+            text = "Your offline teammate link",
             fontSize = 14.sp,
             color = SecondaryText
         )
@@ -208,7 +184,7 @@ private fun NearbyHeader() {
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun BluetoothScanner() {
+private fun BluetoothScanner(label: String) {
 
     val infiniteTransition = rememberInfiniteTransition(
         label = "bluetoothScanner"
@@ -314,7 +290,7 @@ private fun BluetoothScanner() {
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Scanning for devices...",
+            text = label,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             color = SecondaryText
@@ -323,24 +299,16 @@ private fun BluetoothScanner() {
 }
 
 // -----------------------------------------------------------------------------
-// Device Card
+// Teammate Card
 // -----------------------------------------------------------------------------
 
-private enum class SignalStrength {
-    STRONG,
-    MEDIUM,
-    WEAK
-}
-
 @Composable
-private fun DeviceCard(
-    initial: String,
-    name: String,
-    distance: String,
-    signal: SignalStrength,
-    avatarColor: Color,
-    onConnect: () -> Unit
+private fun TeammateCard(
+    address: String,
+    status: String,
+    connected: Boolean
 ) {
+    val avatarColor = if (connected) PrimaryGreen else Color(0xFF8A9A94)
 
     Surface(
         modifier = Modifier
@@ -379,7 +347,7 @@ private fun DeviceCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = initial,
+                    text = "T",
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = avatarColor
@@ -388,12 +356,12 @@ private fun DeviceCard(
 
             Spacer(modifier = Modifier.width(11.dp))
 
-            // Device information
+            // Teammate information
             Column(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = name,
+                    text = "Teammate phone · …${address.takeLast(5)}",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = PrimaryText
@@ -402,101 +370,13 @@ private fun DeviceCard(
                 Spacer(modifier = Modifier.height(3.dp))
 
                 Text(
-                    text = distance,
+                    text = status,
                     fontSize = 12.sp,
                     color = SecondaryText
                 )
             }
-
-            // Signal indicator
-            SignalIndicator(signal)
-            Spacer(modifier = Modifier.width(10.dp))
-
-            // Connect button
-            Button(
-                onClick = onConnect,
-                modifier = Modifier
-                    .height(38.dp)
-                    .width(98.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryGreen,
-                    contentColor = Color.White
-                ),
-                contentPadding = ButtonDefaults.ContentPadding
-            ) {
-                Text(
-                    text = "Connect",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
         }
     }
-}
-
-// -----------------------------------------------------------------------------
-// Signal Bars
-// -----------------------------------------------------------------------------
-
-@Composable
-private fun SignalIndicator(
-    strength: SignalStrength
-) {
-
-    val activeColor = when (strength) {
-        SignalStrength.STRONG -> PrimaryGreen
-        SignalStrength.MEDIUM -> Cyan
-        SignalStrength.WEAK -> MutedText
-    }
-
-    Row(
-        modifier = Modifier.height(25.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-
-        SignalBar(
-            height = 7.dp,
-            active = true,
-            color = activeColor
-        )
-
-        SignalBar(
-            height = 11.dp,
-            active = strength != SignalStrength.WEAK,
-            color = activeColor
-        )
-
-        SignalBar(
-            height = 16.dp,
-            active = strength != SignalStrength.WEAK,
-            color = activeColor
-        )
-
-        SignalBar(
-            height = 21.dp,
-            active = strength == SignalStrength.STRONG,
-            color = activeColor
-        )
-    }
-}
-
-@Composable
-private fun SignalBar(
-    height: androidx.compose.ui.unit.Dp,
-    active: Boolean,
-    color: Color
-) {
-    Box(
-        modifier = Modifier
-            .width(4.dp)
-            .height(height)
-            .clip(RoundedCornerShape(3.dp))
-            .background(
-                if (active) color else color.copy(alpha = 0.18f)
-            )
-    )
 }
 
 // -----------------------------------------------------------------------------

@@ -77,6 +77,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.itantra.app.feature.communication.viewmodel.CommunicationUiState
 import com.itantra.app.feature.communication.viewmodel.CommunicationViewModel
 import com.itantra.app.feature.location.ui.LocationScreen
+import com.itantra.app.core.permissions.LinkPermissions
+import com.itantra.app.core.transport.LinkStatus
+import com.itantra.app.feature.pairing.PairingViewModel
+import com.itantra.app.feature.pairing.linkStatusLabel
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import com.itantra.app.ui.theme.DeepDarkGreen
 import com.itantra.app.ui.theme.GrayBorder
 import com.itantra.app.ui.theme.OffWhite
@@ -85,10 +91,20 @@ import com.itantra.app.ui.theme.SoftLightGreen
 @Composable
 fun HomeScreen(
     communicationViewModel: CommunicationViewModel = hiltViewModel(),
+    pairingViewModel: PairingViewModel = hiltViewModel(),
     onNavigateToTab: (Int) -> Unit = {}
 ) {
     val uiState by communicationViewModel.uiState.collectAsState()
+    val pairing by pairingViewModel.pairing.collectAsState()
+    val linkRunning by pairingViewModel.linkRunning.collectAsState()
+    val linkStatus by pairingViewModel.linkStatus.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    // A phone paired in an earlier session reconnects as soon as the app opens.
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (LinkPermissions.allRequiredGranted(context)) pairingViewModel.ensureLinkRunning()
+    }
 
     Box(
         modifier = Modifier
@@ -103,16 +119,14 @@ fun HomeScreen(
             }
             2 -> {
                 NearbyDevicesScreen(
+                    viewModel = pairingViewModel,
                     onPairViaQr = {
                         selectedTab = 3
-                    },
-                    onConnect = { deviceName ->
-                        // Bluetooth connection logic will be added later
                     }
                 )
             }
             3 -> {
-                PairingScreen()
+                PairingScreen(viewModel = pairingViewModel)
             }
             4 -> {
                 SettingsScreen()
@@ -138,7 +152,9 @@ fun HomeScreen(
                     HomeHeaderSection(
                         onSOSClick = {
                             selectedTab = 5
-                        }
+                        },
+                        linkLabel = linkStatusLabel(pairing, linkRunning, linkStatus),
+                        linkUp = linkStatus is LinkStatus.Connected
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -186,7 +202,9 @@ fun HomeScreen(
  */
 @Composable
 private fun HomeHeaderSection(
-    onSOSClick: () -> Unit
+    onSOSClick: () -> Unit,
+    linkLabel: String,
+    linkUp: Boolean
 ) {
     // SOS Button Continuous Pulse Animation
     val infiniteTransition = rememberInfiniteTransition(label = "SosPulseTransition")
@@ -229,11 +247,11 @@ private fun HomeHeaderSection(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF2E7D32))
+                        .background(if (linkUp) Color(0xFF2E7D32) else Color.Gray)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "4 Peers Online  •  Channel 01",
+                    text = linkLabel,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.Gray

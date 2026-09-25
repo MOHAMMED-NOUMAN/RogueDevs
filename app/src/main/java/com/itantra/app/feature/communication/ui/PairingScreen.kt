@@ -1,4 +1,5 @@
 package com.itantra.app.feature.communication.ui
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,27 +15,38 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.itantra.app.core.transport.PairingState
+import com.itantra.app.feature.pairing.PairingViewModel
+import com.itantra.app.feature.pairing.linkStatusLabel
+import com.itantra.app.feature.pairing.rememberPairingActions
 import com.itantra.app.ui.theme.DeepDarkGreen
 import com.itantra.app.ui.theme.GrayBorder
 import com.itantra.app.ui.theme.OffWhite
@@ -44,25 +56,32 @@ private val PrimaryGreen = Color(0xFF19B878)
 private val Cyan = Color(0xFF25C7C7)
 private val PrimaryText = Color(0xFF17231F)
 private val SecondaryText = Color(0xFF71807A)
+private val ProblemRed = Color(0xFFC0392B)
 
 @Composable
 fun PairingScreen(
-    onScanQr: () -> Unit = {},
-    onShareCode: () -> Unit = {}
+    viewModel: PairingViewModel = hiltViewModel()
 ) {
+    val pairing by viewModel.pairing.collectAsState()
+    val pairingError by viewModel.pairingError.collectAsState()
+    val linkRunning by viewModel.linkRunning.collectAsState()
+    val linkStatus by viewModel.linkStatus.collectAsState()
+    val actions = rememberPairingActions(viewModel)
+
     var topTab by remember { mutableIntStateOf(0) }
-    var qrTab by remember { mutableIntStateOf(0) }
+    var codeTab by remember { mutableIntStateOf(0) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
-            .padding(horizontal = 20.dp, vertical = 20.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 120.dp)
     ) {
 
         // Header
         Text(
-            text = "QR Pairing",
+            text = "Pairing",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = DeepDarkGreen
@@ -78,6 +97,20 @@ fun PairingScreen(
 
         Spacer(modifier = Modifier.height(22.dp))
 
+        if (pairing is PairingState.Paired) {
+            PairedCard(
+                status = linkStatusLabel(pairing, linkRunning, linkStatus),
+                onForget = viewModel::forget
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
+        val problem = actions.problem ?: pairingError?.let { "Pairing failed: $it" }
+        if (problem != null) {
+            ProblemCard(problem)
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
         // Pair / Organisation Feed
         PairingSegmentedControl(
             selected = topTab,
@@ -90,34 +123,108 @@ fun PairingScreen(
 
         if (topTab == 0) {
 
-            // My QR / Scan
+            // My code / Enter code
             PairingSegmentedControl(
-                selected = qrTab,
-                firstText = "My QR",
-                secondText = "Scan",
-                onSelected = {
-                    qrTab = it
-                    if (it == 1) {
-                        onScanQr()
-                    }
-                }
+                selected = codeTab,
+                firstText = "My Code",
+                secondText = "Enter Code",
+                onSelected = { codeTab = it }
             )
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            if (qrTab == 0) {
-                MyQrContent(
-                    onShareCode = onShareCode
+            if (codeTab == 0) {
+                MyCodeContent(
+                    code = viewModel.hostCode,
+                    hosting = pairing is PairingState.Hosting,
+                    onHost = actions.host,
+                    onCancel = viewModel::cancelPairing
                 )
             } else {
-                ScanQrContent(
-                    onScanQr = onScanQr
+                EnterCodeContent(
+                    joining = pairing is PairingState.Joining,
+                    onJoin = actions.join,
+                    onCancel = viewModel::cancelPairing
                 )
             }
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            QrComingSoonNote()
 
         } else {
             OrganisationFeedContent()
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Pairing status
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun PairedCard(
+    status: String,
+    onForget: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, GrayBorder)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "PAIRED TEAMMATE",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SecondaryText,
+                    letterSpacing = 1.sp
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = status,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepDarkGreen
+                )
+            }
+
+            Text(
+                text = "FORGET",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = ProblemRed,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onForget() }
+                    .padding(8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProblemCard(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = ProblemRed.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, ProblemRed.copy(alpha = 0.35f))
+    ) {
+        Text(
+            text = message,
+            fontSize = 12.sp,
+            color = ProblemRed,
+            lineHeight = 17.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+        )
     }
 }
 
@@ -198,19 +305,22 @@ private fun SegmentItem(
 }
 
 // -----------------------------------------------------------------------------
-// My QR
+// My Code (this phone hosts)
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun MyQrContent(
-    onShareCode: () -> Unit
+private fun MyCodeContent(
+    code: String,
+    hosting: Boolean,
+    onHost: () -> Unit,
+    onCancel: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        // QR Card
+        // QR card: placeholder until QR pairing ships
         Surface(
             modifier = Modifier
                 .size(250.dp)
@@ -230,15 +340,18 @@ private fun MyQrContent(
                 contentAlignment = Alignment.Center
             ) {
                 FakeQrCode(
-                    modifier = Modifier.size(205.dp)
+                    modifier = Modifier
+                        .size(205.dp)
+                        .alpha(0.12f)
                 )
+                ComingSoonChip()
             }
         }
 
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "Nouman — Ch. 2",
+            text = "Your pairing code",
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
             color = DeepDarkGreen
@@ -247,7 +360,7 @@ private fun MyQrContent(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Ask a teammate to scan this code\nto join your emergency session.",
+            text = "Tap Wait for teammate, then ask them to\nenter this code under Enter Code.",
             fontSize = 12.sp,
             color = SecondaryText,
             textAlign = TextAlign.Center,
@@ -261,83 +374,54 @@ private fun MyQrContent(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
             color = SoftLightGreen.copy(alpha = 0.35f),
-            border = androidx.compose.foundation.BorderStroke(
+            border = BorderStroke(
                 1.dp,
                 GrayBorder
             )
         ) {
-            Row(
+            Column(
                 modifier = Modifier.padding(
                     horizontal = 16.dp,
                     vertical = 12.dp
-                ),
-                verticalAlignment = Alignment.CenterVertically
+                )
             ) {
-
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "PAIRING CODE",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryText,
-                        letterSpacing = 1.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(3.dp))
-
-                    Text(
-                        text = "ITN-4827",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DeepDarkGreen,
-                        letterSpacing = 1.5.sp
-                    )
-                }
-
                 Text(
-                    text = "COPY",
+                    text = "PAIRING CODE",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DeepDarkGreen
+                    color = SecondaryText,
+                    letterSpacing = 1.sp
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = code,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepDarkGreen,
+                    letterSpacing = 6.sp
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Share button
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clickable { onShareCode() },
-            shape = RoundedCornerShape(24.dp),
-            color = PrimaryGreen,
-            shadowElevation = 3.dp
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "Share code",
-                    tint = Color.White,
-                    modifier = Modifier.size(19.dp)
-                )
+        if (hosting) {
+            Text(
+                text = "Waiting for teammate… this phone stays\nvisible over Bluetooth for 2 minutes.",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeepDarkGreen,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
 
-                Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-                Text(
-                    text = "Share Code",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
+            PairingButton(text = "Cancel", filled = false, onClick = onCancel)
+        } else {
+            PairingButton(text = "Wait for teammate", filled = true, onClick = onHost)
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -364,47 +448,26 @@ private fun MyQrContent(
 }
 
 // -----------------------------------------------------------------------------
-// Scan QR
+// Enter Code (this phone joins)
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun ScanQrContent(
-    onScanQr: () -> Unit
+private fun EnterCodeContent(
+    joining: Boolean,
+    onJoin: (String) -> Unit,
+    onCancel: () -> Unit
 ) {
+    var code by rememberSaveable { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 25.dp),
+            .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        Surface(
-            modifier = Modifier.size(190.dp),
-            shape = RoundedCornerShape(28.dp),
-            color = Color.White,
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                GrayBorder
-            ),
-            shadowElevation = 3.dp
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "QR",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
         Text(
-            text = "Scan teammate's QR",
+            text = "Enter teammate's code",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = DeepDarkGreen
@@ -413,43 +476,145 @@ private fun ScanQrContent(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Scan a teammate's pairing code\nto connect to their emergency session.",
+            text = "Type the 4-digit code shown on your\nteammate's phone after they tap Wait for teammate.",
             fontSize = 12.sp,
             color = SecondaryText,
             textAlign = TextAlign.Center,
             lineHeight = 18.sp
         )
 
-        Spacer(modifier = Modifier.height(22.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clickable { onScanQr() },
-            shape = RoundedCornerShape(24.dp),
-            color = PrimaryGreen
+        OutlinedTextField(
+            value = code,
+            onValueChange = { code = it.filter(Char::isDigit).take(4) },
+            label = { Text("Pairing code") },
+            enabled = !joining,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (joining) {
+            Text(
+                text = "Looking for your teammate's phone…\nthis takes about 15 seconds.",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeepDarkGreen,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            PairingButton(text = "Cancel", filled = false, onClick = onCancel)
+        } else {
+            PairingButton(
+                text = "Join",
+                filled = true,
+                enabled = code.length == 4,
+                onClick = { onJoin(code) }
+            )
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// QR pairing: coming soon
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun ComingSoonChip() {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = DeepDarkGreen
+    ) {
+        Text(
+            text = "QR · COMING SOON",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+        )
+    }
+}
+
+@Composable
+private fun QrComingSoonNote() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, GrayBorder)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "QR PAIRING · COMING SOON",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = SecondaryText,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "Scan-to-Trust",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeepDarkGreen
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "One QR scan will join a teammate and exchange encryption keys " +
+                    "(X25519). Every message after that is sealed with AES-256-GCM, and " +
+                    "replayed messages are dropped. Until then, pair with the 4-digit code.",
+                fontSize = 12.sp,
+                color = SecondaryText,
+                lineHeight = 18.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PairingButton(
+    text: String,
+    filled: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(enabled = enabled) { onClick() },
+        shape = RoundedCornerShape(24.dp),
+        color = when {
+            !filled -> Color.White
+            enabled -> PrimaryGreen
+            else -> PrimaryGreen.copy(alpha = 0.4f)
+        },
+        border = if (filled) null else BorderStroke(1.dp, GrayBorder),
+        shadowElevation = if (filled && enabled) 3.dp else 0.dp
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "QR",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DeepDarkGreen
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    text = "Scan QR Code",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (filled) Color.White else DeepDarkGreen
+            )
         }
     }
 }
