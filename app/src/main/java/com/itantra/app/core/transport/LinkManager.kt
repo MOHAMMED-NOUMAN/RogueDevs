@@ -11,6 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +62,11 @@ class LinkManager @Inject constructor(
     val pairingError: StateFlow<String?> = _pairingError.asStateFlow()
 
     private val transport = MutableStateFlow<Transport?>(null)
+    private var receiveJob: Job? = null
+
+    /** Packets from the teammate, across link restarts. Collect from one place only. */
+    private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
+    val received: Flow<ByteArray> = inbox.receiveAsFlow()
 
     /** True between [startLink] and [stopLink]: the link is up or being (re)connected. */
     val linkRunning: StateFlow<Boolean> = transport
@@ -144,6 +152,7 @@ class LinkManager @Inject constructor(
         )
         val started = Transport(connectors, scope)
         TransportService.start(context)
+        receiveJob = scope.launch { started.received.collect { inbox.send(it) } }
         started.start()
         transport.value = started
     }
@@ -151,9 +160,17 @@ class LinkManager @Inject constructor(
     @Synchronized
     fun stopLink() {
         transport.value?.stop() ?: return
+        receiveJob?.cancel()
+        receiveJob = null
         transport.value = null
         TransportService.stop(context)
     }
+
+    /**
+     * Queues [packet] for the teammate (see [Transport.send]). Null when the link isn't running,
+     * i.e. not paired or switched off; while it runs but is reconnecting, the packet waits.
+     */
+    fun send(packet: ByteArray, priority: Priority): Delivery? = transport.value?.send(packet, priority)
 
     private fun savedPairing(): PairingState {
         val address = prefs.getString(KEY_ADDRESS, null)

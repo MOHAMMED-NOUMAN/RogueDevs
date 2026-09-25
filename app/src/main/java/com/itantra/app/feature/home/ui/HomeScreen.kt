@@ -1,11 +1,9 @@
 package com.itantra.app.feature.home.ui
 
-import androidx.core.content.ContextCompat
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.compose.rememberLauncherForActivityResult
-import android.content.pm.PackageManager
 import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -35,14 +33,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,7 +73,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.itantra.app.core.messaging.IncomingMessage
+import com.itantra.app.core.messaging.MessageLanguage
+import com.itantra.app.core.messaging.SendStatus
 import com.itantra.app.core.permissions.LinkPermissions
 import com.itantra.app.core.transport.LinkStatus
 import com.itantra.app.feature.communication.ui.PairingScreen
@@ -104,6 +114,7 @@ fun HomeScreen(
     pairingViewModel: PairingViewModel = hiltViewModel()
 ) {
     val uiState by communicationViewModel.uiState.collectAsState()
+    val incoming by communicationViewModel.incoming.collectAsState()
     val pairing by pairingViewModel.pairing.collectAsState()
     val linkRunning by pairingViewModel.linkRunning.collectAsState()
     val linkStatus by pairingViewModel.linkStatus.collectAsState()
@@ -147,13 +158,22 @@ fun HomeScreen(
                         linkUp = linkStatus is LinkStatus.Connected
                     )
 
+                    incoming.firstOrNull()?.let { latest ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        IncomingMessageCard(latest)
+                    }
+
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Scrolls only when the cards don't fit (small screens).
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             HomeHoldToTalkSection(
                                 uiState = uiState,
                                 onPressed = {
@@ -398,8 +418,8 @@ private fun HomeHoldToTalkSection(
 }
 
 /**
- * What Hold to Talk heard, shown once after each release so it can be checked. Nothing is
- * sent to the teammate yet.
+ * What Hold to Talk heard, shown once after each release so it can be checked, with the
+ * delivery status of the message it sent.
  */
 @Composable
 private fun TranscriptSection(uiState: CommunicationUiState) {
@@ -445,6 +465,8 @@ private fun TranscriptSection(uiState: CommunicationUiState) {
                         fontSize = 11.sp,
                         color = Color.Gray
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SendStatusRow(uiState.sendStatus)
                 }
             }
         }
@@ -457,6 +479,76 @@ private fun TranscriptSection(uiState: CommunicationUiState) {
         )
 
         else -> Unit
+    }
+}
+
+/** Delivery of the last message to the teammate. */
+@Composable
+private fun SendStatusRow(status: SendStatus) {
+    val (icon, text, color) = when (status) {
+        SendStatus.SENDING -> Triple(Icons.Rounded.Schedule, "Sending to your teammate…", Color.Gray)
+        SendStatus.WAITING -> Triple(Icons.Rounded.Schedule, "Waiting for the link. Sends when it's back.", Color.Gray)
+        SendStatus.DELIVERED -> Triple(Icons.Rounded.DoneAll, "Delivered", Color(0xFF19B878))
+        SendStatus.FAILED -> Triple(Icons.Rounded.ErrorOutline, "Not delivered. Teammate out of reach.", Color(0xFFD32F2F))
+        SendStatus.NOT_PAIRED -> Triple(Icons.Rounded.LinkOff, "Not sent. Pair a teammate first.", Color(0xFFD32F2F))
+        SendStatus.LINK_OFF -> Triple(Icons.Rounded.LinkOff, "Not sent. Offline Link is off in Settings.", Color(0xFFD32F2F))
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(text = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color)
+    }
+}
+
+/** The teammate's latest message. */
+@Composable
+private fun IncomingMessageCard(message: IncomingMessage) {
+    val time = remember(message.receivedAtMs) {
+        java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(message.receivedAtMs))
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = SoftLightGreen.copy(alpha = 0.22f),
+        border = BorderStroke(1.dp, SoftLightGreen)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.RecordVoiceOver,
+                    contentDescription = null,
+                    tint = DeepDarkGreen,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "FROM ${message.sender.ifBlank { "TEAMMATE" }.uppercase()}",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepDarkGreen,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(text = time, fontSize = 11.sp, color = Color.Gray)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = message.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeepDarkGreen,
+                lineHeight = 25.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = when (message.language) {
+                    MessageLanguage.ENGLISH -> "English"
+                    MessageLanguage.HINDI -> "Hindi"
+                },
+                fontSize = 11.sp,
+                color = Color.Gray
+            )
+        }
     }
 }
 
