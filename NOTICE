@@ -1,0 +1,17 @@
+iTantra
+Copyright 2026 Team Rogue Devs (iTantra contributors)
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It includes third-party components, each under its own license:
+
+- Speech models in app/src/main/assets/whisper-en and whisper-hi are fine-tuned
+  from OpenAI Whisper (tiny).
+  MIT License, Copyright (c) 2022 OpenAI.
+
+- ONNX Runtime for Android, which runs the speech models on the phone.
+  MIT License, Copyright (c) Microsoft Corporation.
+
+- AndroidX, Jetpack Compose, Material Components and icons, Kotlin,
+  kotlinx.coroutines, kotlinx.serialization and Hilt / Dagger.
+  Apache License, Version 2.0.

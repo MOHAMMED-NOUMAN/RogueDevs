@@ -15,6 +15,7 @@ Wi-Fi Direct or Bluetooth. No internet, no SIM, no server.</p>
 <img src="https://img.shields.io/badge/Jetpack%20Compose-UI-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" />
 <img src="https://img.shields.io/badge/ONNX%20Runtime-on--device-005CED?style=for-the-badge&logo=onnx&logoColor=white" alt="ONNX Runtime" />
 <img src="https://img.shields.io/badge/Works-100%25%20offline-19B878?style=for-the-badge" alt="100% offline" />
+<img src="https://img.shields.io/badge/License-Apache%202.0-1E3A21?style=for-the-badge" alt="Apache 2.0" />
 
 <br/><br/>
 
@@ -341,7 +342,8 @@ unnecessary dependencies, abstractions or duplicate implementations.
 
 ## <img src="https://api.iconify.design/material-symbols/gavel-rounded.svg?color=%2319B878" width="26" align="top" /> &nbsp;License
 
-See **[LICENSE](LICENSE)**.
+iTantra is open source under the **[Apache License 2.0](LICENSE)**. Third-party parts it ships
+(the Whisper speech models and ONNX Runtime, both MIT) are credited in **[NOTICE](NOTICE)**.
 
 <br/>
 
