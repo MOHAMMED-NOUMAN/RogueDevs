@@ -4,6 +4,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
+        <!-- Listed first so the merged manifest keeps the main app as the first launcher
+             activity; Android Studio's Run starts whichever launcher activity comes first. -->
+        <activity android:name=".MainActivity" />
+
         <activity
             android:name=".debug.TransportDebugActivity"
             android:exported="true"
