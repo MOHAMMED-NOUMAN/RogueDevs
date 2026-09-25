@@ -83,7 +83,83 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
+    // JVM unit tests
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+
     // On-device tests (the STT benchmark runs here)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.test.runner)
 }
+
+// ── Offline-only guard ───────────────────────────────────────────────────────
+// The app must work with no network and may not use closed-source SDKs. INTERNET is
+// declared only because Android needs it to open the local Wi-Fi Direct socket. This
+// check runs before every build and fails it if an HTTP client or a Play Services /
+// Firebase / ML Kit library shows up as a dependency, or if our source uses an HTTP API.
+abstract class CheckOfflineOnly : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:Input
+    abstract val runtimeGraphs: ListProperty<ResolvedComponentResult>
+
+    @TaskAction
+    fun check() {
+        val bannedModulePrefixes = listOf(
+            "com.squareup.okhttp", "com.squareup.retrofit", "io.ktor:ktor-client",
+            "com.android.volley", "org.apache.httpcomponents", "com.google.net.cronet",
+            "org.chromium.net", "com.google.android.gms", "com.google.firebase", "com.google.mlkit",
+        )
+        val bannedApis = listOf(
+            "java.net.URL", "java.net.URLConnection", "java.net.HttpURLConnection",
+            "javax.net.ssl.HttpsURLConnection", "android.net.http.", "android.webkit.WebView",
+            "okhttp3.", "retrofit2.", "io.ktor.client.", "com.android.volley.",
+        ).associateWith { api -> Regex(Regex.escape(api) + if (api.endsWith(".")) "" else "\\b") }
+
+        val modules = runtimeGraphs.get().flatMap { root ->
+            val seen = LinkedHashSet<ResolvedComponentResult>()
+            val stack = ArrayDeque(listOf(root))
+            while (stack.isNotEmpty()) {
+                val component = stack.removeLast()
+                if (!seen.add(component)) continue
+                component.dependencies.filterIsInstance<ResolvedDependencyResult>().forEach { stack.add(it.selected) }
+            }
+            seen.mapNotNull { c -> c.moduleVersion?.let { "${it.group}:${it.name}" } }
+        }.toSortedSet()
+
+        val problems = modules.filter { m -> bannedModulePrefixes.any { m.startsWith(it) } }
+            .map { "dependency $it" } +
+            sources.files.sortedBy { it.path }.flatMap { file ->
+                file.readLines().mapIndexedNotNull { i, line ->
+                    bannedApis.entries.firstOrNull { it.value.containsMatchIn(line) }
+                        ?.let { "${file.name}:${i + 1} uses ${it.key}" }
+                }
+            }
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                "Offline-only check failed:\n" + problems.joinToString("\n") { "  - $it" }
+            )
+        }
+    }
+}
+
+val checkOfflineOnly = tasks.register<CheckOfflineOnly>("checkOfflineOnly") {
+    group = "verification"
+    description = "Fails if an HTTP client or closed-source Google SDK is used."
+    sources.from(fileTree("src") {
+        include("**/*.kt", "**/*.java")
+        exclude("test/**", "androidTest/**")
+    })
+}
+
+androidComponents {
+    onVariants { variant ->
+        checkOfflineOnly.configure {
+            runtimeGraphs.add(variant.runtimeConfiguration.incoming.resolutionResult.rootComponent)
+        }
+    }
+}
+
+tasks.named("preBuild") { dependsOn(checkOfflineOnly) }
