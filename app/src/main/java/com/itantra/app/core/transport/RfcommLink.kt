@@ -16,6 +16,7 @@ import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.withTimeoutOrNull
 
 // Every Bluetooth call below needs BLUETOOTH_CONNECT (Android 12+), plus BLUETOOTH_SCAN for
 // discovery. Callers are expected to have them granted; a missing permission surfaces as a
@@ -128,7 +129,8 @@ class RfcommPairing(context: Context) {
     suspend fun join(code: ByteArray): RfcommPeer {
         val adapter = enabledAdapter(adapter)
         val uuid = pairingUuid(code)
-        for (device in discoverPhones(adapter)) {
+        val nearby = discoverPhones(adapter)
+        for (device in nearby.phones) {
             val socket = device.createInsecureRfcommSocketToServiceRecord(uuid)
             try {
                 cancellableBlocking(socket::close) {
@@ -142,12 +144,20 @@ class RfcommPairing(context: Context) {
                 socket.close()
             }
         }
-        throw IOException("no nearby phone is hosting this pairing code")
+        throw IOException(
+            "no nearby phone is hosting this pairing code (saw ${nearby.devicesSeen} Bluetooth " +
+                "devices, ${nearby.phones.size} of them phones)"
+        )
     }
 
-    private suspend fun discoverPhones(adapter: BluetoothAdapter): List<BluetoothDevice> {
+    private class Discovery(val phones: List<BluetoothDevice>, val devicesSeen: Int)
+
+    private suspend fun discoverPhones(adapter: BluetoothAdapter): Discovery {
         val found = LinkedHashMap<String, Pair<BluetoothDevice, Short>>()
-        callbackFlow {
+        val seen = HashSet<String>()
+        // Discovery normally ends by itself after about 12 s; the timeout only guards against
+        // ACTION_DISCOVERY_FINISHED never arriving.
+        withTimeoutOrNull(DISCOVERY_TIMEOUT_MS) { callbackFlow {
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
                     when (intent.action) {
@@ -163,18 +173,22 @@ class RfcommPairing(context: Context) {
                 addAction(BluetoothDevice.ACTION_FOUND)
                 addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
             }
-            ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            // EXPORTED: these broadcasts come from the Bluetooth app, not from this app, and a
+            // NOT_EXPORTED receiver silently drops them. Both actions are protected broadcasts,
+            // so no other app can send them.
+            ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
             if (!adapter.startDiscovery()) close(IOException("could not start Bluetooth discovery"))
             awaitClose {
                 adapter.cancelDiscovery()
                 context.unregisterReceiver(receiver)
             }
         }.collect { (device, rssi) ->
+            seen += device.address
             if (device.bluetoothClass?.majorDeviceClass == BluetoothClass.Device.Major.PHONE) {
                 found[device.address] = device to rssi
             }
-        }
-        return found.values.sortedByDescending { it.second }.map { it.first }
+        } }
+        return Discovery(found.values.sortedByDescending { it.second }.map { it.first }, seen.size)
     }
 
     /** One byte each way, so both sides know the other really got the connection. */
@@ -186,6 +200,7 @@ class RfcommPairing(context: Context) {
 
     companion object {
         private const val HANDSHAKE = 0x49
+        private const val DISCOVERY_TIMEOUT_MS = 20_000L
 
         /** Asks the user to make this phone visible to nearby phones, for [host]. */
         fun discoverableIntent(seconds: Int = 120): Intent =
