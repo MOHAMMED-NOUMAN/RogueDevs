@@ -30,6 +30,12 @@ android {
         release {
             isMinifyEnabled = false // flip on once the app is feature-complete, not for early boilerplate
         }
+        // Debug build plus the "iTantra transport debug" test screen (src/transportDebug).
+        // Build it only when testing the link: ./gradlew assembleTransportDebug
+        create("transportDebug") {
+            initWith(getByName("debug"))
+            matchingFallbacks += "debug"
+        }
     }
 
     compileOptions {
