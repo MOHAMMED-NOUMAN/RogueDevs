@@ -123,14 +123,15 @@ class RfcommPairing(context: Context) {
     }
 
     /**
-     * Discovers nearby phones (about 12 s) and tries them strongest signal first until one is
-     * hosting [code]. Throws if none is.
+     * Discovers nearby Bluetooth devices (about 12 s) and tries them until one is hosting [code]:
+     * phones first, then everything else, strongest signal first within each. Throws if none is.
      */
     suspend fun join(code: ByteArray): RfcommPeer {
         val adapter = enabledAdapter(adapter)
         val uuid = pairingUuid(code)
-        val nearby = discoverPhones(adapter)
-        for (device in nearby.phones) {
+        val nearby = discoverDevices(adapter)
+        var lastError: String? = null
+        for (device in nearby.candidates) {
             val socket = device.createInsecureRfcommSocketToServiceRecord(uuid)
             try {
                 cancellableBlocking(socket::close) {
@@ -139,20 +140,22 @@ class RfcommPairing(context: Context) {
                 }
                 return RfcommPeer(device.address, PeerRole.DIAL)
             } catch (e: IOException) {
-                // Not hosting this code (or out of reach). Try the next phone.
+                // Not hosting this code (or out of reach). Try the next device.
+                lastError = e.message
             } finally {
                 socket.close()
             }
         }
         throw IOException(
             "no nearby phone is hosting this pairing code (saw ${nearby.devicesSeen} Bluetooth " +
-                "devices, ${nearby.phones.size} of them phones)"
+                "devices, tried ${nearby.candidates.size}" +
+                (lastError?.let { "; last error: $it" } ?: "") + ")"
         )
     }
 
-    private class Discovery(val phones: List<BluetoothDevice>, val devicesSeen: Int)
+    private class Discovery(val candidates: List<BluetoothDevice>, val devicesSeen: Int)
 
-    private suspend fun discoverPhones(adapter: BluetoothAdapter): Discovery {
+    private suspend fun discoverDevices(adapter: BluetoothAdapter): Discovery {
         val found = LinkedHashMap<String, Pair<BluetoothDevice, Short>>()
         val seen = HashSet<String>()
         // Discovery normally ends by itself after about 12 s; the timeout only guards against
@@ -184,11 +187,17 @@ class RfcommPairing(context: Context) {
             }
         }.collect { (device, rssi) ->
             seen += device.address
-            if (device.bluetoothClass?.majorDeviceClass == BluetoothClass.Device.Major.PHONE) {
-                found[device.address] = device to rssi
-            }
+            // RFCOMM needs Classic Bluetooth, so Low Energy-only devices can't be the host.
+            if (device.type != BluetoothDevice.DEVICE_TYPE_LE) found[device.address] = device to rssi
         } }
-        return Discovery(found.values.sortedByDescending { it.second }.map { it.first }, seen.size)
+        // Not every phone reports itself as a phone (some say computer or uncategorized), so
+        // the class only decides the order, never whether a device is tried.
+        val candidates = found.values.sortedWith(
+            compareByDescending<Pair<BluetoothDevice, Short>> {
+                it.first.bluetoothClass?.majorDeviceClass == BluetoothClass.Device.Major.PHONE
+            }.thenByDescending { it.second }
+        ).map { it.first }
+        return Discovery(candidates, seen.size)
     }
 
     /** One byte each way, so both sides know the other really got the connection. */
