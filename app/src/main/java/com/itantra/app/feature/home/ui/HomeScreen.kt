@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
@@ -69,7 +68,6 @@ import com.itantra.app.feature.communication.ui.PairingScreen
 import com.itantra.app.feature.communication.viewmodel.CommunicationUiState
 import com.itantra.app.feature.communication.viewmodel.CommunicationViewModel
 import com.itantra.app.feature.emergency.SOS
-import com.itantra.app.feature.location.ui.LocationScreen
 import com.itantra.app.feature.pairing.PairingViewModel
 import com.itantra.app.feature.pairing.linkStatusLabel
 import com.itantra.app.feature.settings.ui.SettingsScreen
@@ -81,15 +79,15 @@ import com.itantra.app.ui.theme.OffWhite
 import com.itantra.app.ui.theme.SoftLightGreen
 import kotlin.math.roundToInt
 
+// Tab indices match NavItems; SOS is a full screen without the bar. The Team Map tab is in
+// backlog/team-map until it has real positions.
 private const val TAB_HOME = 0
-private const val TAB_MAP = 1
-private const val TAB_PAIR = 2
-private const val TAB_SETTINGS = 3
-private const val TAB_SOS = 4
+private const val TAB_PAIR = 1
+private const val TAB_SETTINGS = 2
+private const val TAB_SOS = 3
 
 private val NavItems = listOf(
     NavigationItem("Home", Icons.Rounded.Home),
-    NavigationItem("Map", Icons.Rounded.Map),
     NavigationItem("Pair", Icons.Rounded.Link),
     NavigationItem("Settings", Icons.Rounded.Settings)
 )
@@ -117,7 +115,6 @@ fun HomeScreen(
             .background(OffWhite)
     ) {
         when (selectedTab) {
-            TAB_MAP -> LocationScreen()
             TAB_PAIR -> PairingScreen(viewModel = pairingViewModel)
             TAB_SETTINGS -> SettingsScreen(pairingViewModel = pairingViewModel)
             TAB_SOS -> SOS(onBack = { selectedTab = TAB_HOME })

@@ -1,19 +1,12 @@
 package com.itantra.app.feature.communication.ui
-import com.itantra.app.core.transport.LinkStatus
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.material3.Icon
-import androidx.compose.material.icons.rounded.PhoneAndroid
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.BluetoothSearching
-import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.RepeatMode
+
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -29,20 +22,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.BluetoothSearching
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Dialpad
+import androidx.compose.material.icons.rounded.Pin
+import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,14 +54,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.itantra.app.core.transport.LinkStatus
 import com.itantra.app.core.transport.PairingState
 import com.itantra.app.feature.pairing.PairingViewModel
 import com.itantra.app.feature.pairing.linkStatusLabel
@@ -68,11 +74,14 @@ import com.itantra.app.ui.theme.OffWhite
 import com.itantra.app.ui.theme.SoftLightGreen
 
 private val PrimaryGreen = Color(0xFF19B878)
-private val Cyan = Color(0xFF25C7C7)
 private val PrimaryText = Color(0xFF17231F)
 private val SecondaryText = Color(0xFF71807A)
 private val ProblemRed = Color(0xFFC0392B)
 
+/**
+ * Pair tab. One question at a time: choose Show my code (this phone waits) or Enter a code
+ * (this phone joins); then only the steps for that choice; then a clear connected state.
+ */
 @Composable
 fun PairingScreen(
     viewModel: PairingViewModel = hiltViewModel()
@@ -83,8 +92,18 @@ fun PairingScreen(
     val linkStatus by viewModel.linkStatus.collectAsState()
     val actions = rememberPairingActions(viewModel)
 
-    var topTab by remember { mutableIntStateOf(0) }
-    var codeTab by remember { mutableIntStateOf(0) }
+    // Local steps that don't exist in LinkManager: typing a code, and re-pairing while paired.
+    var enteringCode by rememberSaveable { mutableStateOf(false) }
+    var pairingAnother by rememberSaveable { mutableStateOf(false) }
+
+    // A finished pairing (or a new attempt) resets the local steps.
+    LaunchedEffect(pairing) {
+        if (pairing is PairingState.Paired || pairing is PairingState.Joining) enteringCode = false
+        if (pairing is PairingState.Paired) pairingAnother = false
+    }
+    BackHandler(enabled = enteringCode || pairingAnother) {
+        if (enteringCode) enteringCode = false else pairingAnother = false
+    }
 
     Column(
         modifier = Modifier
@@ -94,10 +113,8 @@ fun PairingScreen(
             .verticalScroll(rememberScrollState())
             .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 120.dp)
     ) {
-
-        // Header
         Text(
-            text = "Pairing",
+            text = "Pair a teammate",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
             color = DeepDarkGreen
@@ -106,152 +123,582 @@ fun PairingScreen(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "Connect securely with nearby teammates",
+            text = "Connect two phones. No internet or SIM needed.",
             fontSize = 14.sp,
             color = SecondaryText
         )
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        val paired = pairing as? PairingState.Paired
-        if (paired != null) {
-            PairedCard(
-                address = paired.peer.address,
-                status = linkStatusLabel(pairing, linkRunning, linkStatus),
-                connected = linkStatus is LinkStatus.Connected,
-                onForget = viewModel::forget
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-        }
-
-        val problem = actions.problem ?: pairingError?.let { "Pairing failed: $it" }
+        val problem = actions.problem ?: pairingError?.let { friendlyPairingError(it) }
         if (problem != null) {
             ProblemCard(problem)
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Pair / Organisation Feed
-        PairingSegmentedControl(
-            selected = topTab,
-            firstText = "Pair",
-            secondText = "Org Feed",
-            onSelected = { topTab = it }
-        )
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        if (topTab == 0) {
-
-            // My code / Enter code
-            PairingSegmentedControl(
-                selected = codeTab,
-                firstText = "My Code",
-                secondText = "Enter Code",
-                onSelected = { codeTab = it }
+        val current = pairing
+        when {
+            current is PairingState.Hosting -> ShowCodeStep(
+                code = current.code,
+                onCancel = viewModel::cancelPairing
             )
 
-            Spacer(modifier = Modifier.height(22.dp))
+            current is PairingState.Joining -> SearchingStep(
+                code = current.code,
+                onCancel = viewModel::cancelPairing
+            )
 
-            if (codeTab == 0) {
-                MyCodeContent(
-                    code = viewModel.hostCode,
-                    hosting = pairing is PairingState.Hosting,
-                    onHost = actions.host,
-                    onCancel = viewModel::cancelPairing
-                )
-            } else {
-                EnterCodeContent(
-                    joining = pairing is PairingState.Joining,
-                    onJoin = actions.join,
-                    onCancel = viewModel::cancelPairing
-                )
-            }
+            enteringCode -> EnterCodeStep(
+                onBack = { enteringCode = false },
+                onConnect = actions.join
+            )
 
+            current is PairingState.Paired && !pairingAnother -> ConnectedStep(
+                address = current.peer.address,
+                status = linkStatusLabel(current, linkRunning, linkStatus),
+                connected = linkStatus is LinkStatus.Connected,
+                onPairAnother = { pairingAnother = true },
+                onForget = viewModel::forget
+            )
 
-        } else {
-            OrganisationFeedContent()
+            else -> ChooseStep(
+                showBack = current is PairingState.Paired,
+                onBack = { pairingAnother = false },
+                onShowCode = actions.host,
+                onEnterCode = { enteringCode = true }
+            )
         }
     }
 }
 
+/** Turns transport errors into something a person can act on. */
+private fun friendlyPairingError(raw: String): String = when {
+    raw.startsWith("no nearby phone is hosting") ->
+        "Couldn't find your teammate's phone. Check the code, keep the phones close, and make sure " +
+            "the other phone is still showing its code."
+    raw.contains("Bluetooth is off", ignoreCase = true) -> "Turn Bluetooth on and try again."
+    else -> "Pairing didn't finish ($raw). Try again."
+}
+
 // -----------------------------------------------------------------------------
-// Pairing status
+// Step: choose what this phone does
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun PairedCard(
-    address: String,
-    status: String,
-    connected: Boolean,
-    onForget: () -> Unit
+private fun ChooseStep(
+    showBack: Boolean,
+    onBack: () -> Unit,
+    onShowCode: () -> Unit,
+    onEnterCode: () -> Unit
 ) {
-    val avatarColor = if (connected) PrimaryGreen else SecondaryText
+    Column {
+        if (showBack) {
+            BackRow(text = "Back to your teammate", onClick = onBack)
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        StepLabel("DO THIS ON EACH PHONE")
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        ChoiceCard(
+            icon = Icons.Rounded.Pin,
+            title = "Show my code",
+            description = "Pick this on one phone. You'll get a 4-digit code to share.",
+            onClick = onShowCode
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        ChoiceCard(
+            icon = Icons.Rounded.Dialpad,
+            title = "Enter a code",
+            description = "Pick this on the other phone, then type the code it shows.",
+            onClick = onEnterCode
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        ChoiceCard(
+            icon = Icons.Rounded.QrCodeScanner,
+            title = "Scan a QR code",
+            description = "Pair by scanning your teammate's screen.",
+            comingSoon = true,
+            onClick = null
+        )
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        HowItWorks()
+    }
+}
+
+@Composable
+private fun ChoiceCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: (() -> Unit)?,
+    comingSoon: Boolean = false
+) {
+    val enabled = onClick != null
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .alpha(if (enabled) 1f else 0.6f),
+        shape = RoundedCornerShape(18.dp),
         color = Color.White,
         border = BorderStroke(1.dp, GrayBorder)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(avatarColor.copy(alpha = 0.10f))
-                    .border(1.5.dp, avatarColor, CircleShape),
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (enabled) SoftLightGreen.copy(alpha = 0.45f) else GrayBorder),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PhoneAndroid,
+                    imageVector = icon,
                     contentDescription = null,
-                    tint = avatarColor,
-                    modifier = Modifier.size(22.dp)
+                    tint = DeepDarkGreen,
+                    modifier = Modifier.size(24.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "PAIRED TEAMMATE",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryText,
-                    letterSpacing = 1.sp
-                )
-
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryText
+                    )
+                    if (comingSoon) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        ComingSoonChip()
+                    }
+                }
                 Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = description,
+                    fontSize = 12.sp,
+                    color = SecondaryText,
+                    lineHeight = 17.sp
+                )
+            }
+
+            if (enabled) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = SecondaryText
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HowItWorks() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = SoftLightGreen.copy(alpha = 0.18f),
+        border = BorderStroke(1.dp, GrayBorder)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            StepLabel("HOW IT WORKS")
+            Spacer(modifier = Modifier.height(10.dp))
+            NumberedLine(1, "Phone A taps Show my code.")
+            NumberedLine(2, "Phone B taps Enter a code and types it.")
+            NumberedLine(3, "The phones connect by themselves: Wi-Fi Direct first, Bluetooth as backup.")
+        }
+    }
+}
+
+@Composable
+private fun NumberedLine(number: Int, text: String) {
+    Row(
+        modifier = Modifier.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(DeepDarkGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = number.toString(),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            color = PrimaryText,
+            lineHeight = 19.sp,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Step: this phone shows its code and waits
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun ShowCodeStep(
+    code: String,
+    onCancel: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        StepLabel("YOUR CODE", modifier = Modifier.fillMaxWidth())
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, GrayBorder)
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 22.dp, horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    code.forEach { digit -> DigitBox(digit) }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                SearchingPulse(modifier = Modifier.size(150.dp))
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = status,
-                    fontSize = 15.sp,
+                    text = "Waiting for your teammate…",
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepDarkGreen
                 )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Teammate phone …${address.takeLast(5)}",
-                    fontSize = 11.sp,
+                    text = "This phone stays visible for 2 minutes.",
+                    fontSize = 12.sp,
                     color = SecondaryText
                 )
             }
-
-            Text(
-                text = "FORGET",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = ProblemRed,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onForget() }
-                    .padding(8.dp)
-            )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = SoftLightGreen.copy(alpha = 0.18f),
+            border = BorderStroke(1.dp, GrayBorder)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                StepLabel("ON YOUR TEAMMATE'S PHONE")
+                Spacer(modifier = Modifier.height(10.dp))
+                NumberedLine(1, "Open iTantra and go to Pair.")
+                NumberedLine(2, "Tap Enter a code.")
+                NumberedLine(3, "Type $code and tap Connect.")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        PairingButton(text = "Cancel", filled = false, onClick = onCancel)
+    }
+}
+
+@Composable
+private fun DigitBox(digit: Char) {
+    Box(
+        modifier = Modifier
+            .size(width = 52.dp, height = 64.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(SoftLightGreen.copy(alpha = 0.35f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = digit.toString(),
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Bold,
+            color = DeepDarkGreen
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Step: this phone types the teammate's code
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun EnterCodeStep(
+    onBack: () -> Unit,
+    onConnect: (String) -> Unit
+) {
+    var code by rememberSaveable { mutableStateOf("") }
+
+    Column {
+        BackRow(text = "Back", onClick = onBack)
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        StepLabel("ENTER YOUR TEAMMATE'S CODE")
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "It's the 4 digits on the phone that tapped Show my code.",
+            fontSize = 13.sp,
+            color = SecondaryText,
+            lineHeight = 19.sp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = code,
+            onValueChange = { code = it.filter(Char::isDigit).take(4) },
+            placeholder = {
+                Text(
+                    text = "0000",
+                    fontSize = 30.sp,
+                    letterSpacing = 12.sp,
+                    color = GrayBorder,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 12.sp,
+                color = DeepDarkGreen,
+                textAlign = TextAlign.Center
+            ),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = GrayBorder,
+                focusedBorderColor = PrimaryGreen,
+                unfocusedContainerColor = Color.White,
+                focusedContainerColor = Color.White
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        PairingButton(
+            text = "Connect",
+            filled = true,
+            enabled = code.length == 4,
+            onClick = { onConnect(code) }
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Step: looking for the phone showing the code
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun SearchingStep(
+    code: String,
+    onCancel: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, GrayBorder)
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 26.dp, horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                SearchingPulse(modifier = Modifier.size(170.dp))
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Looking for the phone showing $code…",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepDarkGreen,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Keep both phones close. This takes about 15 seconds.",
+                    fontSize = 12.sp,
+                    color = SecondaryText,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        PairingButton(text = "Cancel", filled = false, onClick = onCancel)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Step: paired
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun ConnectedStep(
+    address: String,
+    status: String,
+    connected: Boolean,
+    onPairAnother: () -> Unit,
+    onForget: () -> Unit
+) {
+    val accent = if (connected) PrimaryGreen else SecondaryText
+
+    Column {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, GrayBorder)
+        ) {
+            Column(
+                modifier = Modifier.padding(vertical = 24.dp, horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.12f))
+                        .border(2.dp, accent, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (connected) Icons.Rounded.CheckCircle else Icons.Rounded.BluetoothSearching,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = if (connected) "You're connected" else "Paired",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepDarkGreen
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = status,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Teammate phone …${address.takeLast(5)}",
+                    fontSize = 12.sp,
+                    color = SecondaryText
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = if (connected) "Go to Home and hold the mic to talk."
+            else "The phones reconnect by themselves when they're near each other.",
+            fontSize = 13.sp,
+            color = SecondaryText,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        PairingButton(text = "Pair a different phone", filled = false, onClick = onPairAnother)
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Forget this teammate",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = ProblemRed,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onForget)
+                .padding(vertical = 12.dp)
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Shared pieces
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun StepLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        color = SecondaryText,
+        letterSpacing = 1.sp,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun BackRow(text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = null,
+            tint = DeepDarkGreen,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = DeepDarkGreen
+        )
     }
 }
 
@@ -265,321 +712,68 @@ private fun ProblemCard(message: String) {
     ) {
         Text(
             text = message,
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             color = ProblemRed,
-            lineHeight = 17.sp,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
         )
     }
 }
 
-// -----------------------------------------------------------------------------
-// Segmented Control
-// -----------------------------------------------------------------------------
+@Composable
+private fun ComingSoonChip() {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = DeepDarkGreen
+    ) {
+        Text(
+            text = "COMING SOON",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
 
 @Composable
-private fun PairingSegmentedControl(
-    selected: Int,
-    firstText: String,
-    secondText: String,
-    onSelected: (Int) -> Unit
+private fun PairingButton(
+    text: String,
+    filled: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(46.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = Color(0xFFE8EFEB)
+            .height(52.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .clickable(enabled = enabled) { onClick() },
+        shape = RoundedCornerShape(26.dp),
+        color = when {
+            !filled -> Color.White
+            enabled -> PrimaryGreen
+            else -> PrimaryGreen.copy(alpha = 0.4f)
+        },
+        border = if (filled) null else BorderStroke(1.dp, GrayBorder),
+        shadowElevation = if (filled && enabled) 3.dp else 0.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(3.dp)
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-
-            SegmentItem(
-                text = firstText,
-                selected = selected == 0,
-                modifier = Modifier.weight(1f),
-                onClick = { onSelected(0) }
-            )
-
-            SegmentItem(
-                text = secondText,
-                selected = selected == 1,
-                modifier = Modifier.weight(1f),
-                onClick = { onSelected(1) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun SegmentItem(
-    text: String,
-    selected: Boolean,
-    modifier: Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(21.dp))
-            .background(
-                if (selected) PrimaryGreen
-                else Color.Transparent
-            )
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 13.sp,
-            fontWeight = if (selected) {
-                FontWeight.Bold
-            } else {
-                FontWeight.Medium
-            },
-            color = if (selected) {
-                Color.White
-            } else {
-                SecondaryText
-            }
-        )
-    }
-}
-
-// -----------------------------------------------------------------------------
-// My Code (this phone hosts)
-// -----------------------------------------------------------------------------
-
-@Composable
-private fun MyCodeContent(
-    code: String,
-    hosting: Boolean,
-    onHost: () -> Unit,
-    onCancel: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        // QR card: placeholder until QR pairing ships
-        Surface(
-            modifier = Modifier
-                .size(250.dp)
-                .border(
-                    width = 1.dp,
-                    color = GrayBorder,
-                    shape = RoundedCornerShape(24.dp)
-                ),
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White,
-            shadowElevation = 4.dp
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(18.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (hosting) {
-                    SearchingPulse(modifier = Modifier.size(205.dp))
-                } else {
-                    FakeQrCode(
-                        modifier = Modifier
-                            .size(205.dp)
-                            .alpha(0.12f)
-                    )
-                    ComingSoonChip()
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Text(
-            text = "Your pairing code",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = DeepDarkGreen
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = "Tap Wait for teammate, then ask them to\nenter this code under Enter Code.",
-            fontSize = 12.sp,
-            color = SecondaryText,
-            textAlign = TextAlign.Center,
-            lineHeight = 18.sp
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Pairing code
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            color = SoftLightGreen.copy(alpha = 0.35f),
-            border = BorderStroke(
-                1.dp,
-                GrayBorder
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(
-                    horizontal = 16.dp,
-                    vertical = 12.dp
-                )
-            ) {
-                Text(
-                    text = "PAIRING CODE",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryText,
-                    letterSpacing = 1.sp
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = code,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DeepDarkGreen,
-                    letterSpacing = 6.sp
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (hosting) {
             Text(
-                text = "Waiting for teammate… this phone stays\nvisible over Bluetooth for 2 minutes.",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DeepDarkGreen,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            PairingButton(text = "Cancel", filled = false, onClick = onCancel)
-        } else {
-            PairingButton(text = "Wait for teammate", filled = true, onClick = onHost)
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.CheckCircle,
-                contentDescription = null,
-                tint = PrimaryGreen,
-                modifier = Modifier.size(16.dp)
-            )
-
-            Spacer(modifier = Modifier.width(6.dp))
-
-            Text(
-                text = "Works offline with nearby devices",
-                fontSize = 11.sp,
-                color = SecondaryText
+                text = text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (filled) Color.White else DeepDarkGreen
             )
         }
     }
 }
 
-// -----------------------------------------------------------------------------
-// Enter Code (this phone joins)
-// -----------------------------------------------------------------------------
-
-@Composable
-private fun EnterCodeContent(
-    joining: Boolean,
-    onJoin: (String) -> Unit,
-    onCancel: () -> Unit
-) {
-    var code by rememberSaveable { mutableStateOf("") }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        if (joining) {
-            SearchingPulse(modifier = Modifier.size(180.dp))
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-
-        Text(
-            text = "Enter teammate's code",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = DeepDarkGreen
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = "Type the 4-digit code shown on your\nteammate's phone after they tap Wait for teammate.",
-            fontSize = 12.sp,
-            color = SecondaryText,
-            textAlign = TextAlign.Center,
-            lineHeight = 18.sp
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        OutlinedTextField(
-            value = code,
-            onValueChange = { code = it.filter(Char::isDigit).take(4) },
-            label = { Text("Pairing code") },
-            enabled = !joining,
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (joining) {
-            Text(
-                text = "Looking for your teammate's phone…\nthis takes about 15 seconds.",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DeepDarkGreen,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            PairingButton(text = "Cancel", filled = false, onClick = onCancel)
-        } else {
-            PairingButton(
-                text = "Join",
-                filled = true,
-                enabled = code.length == 4,
-                onClick = { onJoin(code) }
-            )
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Searching animation: rings ripple out from a Bluetooth icon at the centre
-// -----------------------------------------------------------------------------
-
+/** Searching animation: rings ripple out from a Bluetooth icon at the centre. */
 @Composable
 private fun SearchingPulse(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "searching")
@@ -623,248 +817,4 @@ private fun SearchingPulse(modifier: Modifier = Modifier) {
             )
         }
     }
-}
-
-// -----------------------------------------------------------------------------
-// QR pairing: coming soon
-// -----------------------------------------------------------------------------
-
-@Composable
-private fun ComingSoonChip() {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = DeepDarkGreen
-    ) {
-        Text(
-            text = "QR · COMING SOON",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-        )
-    }
-}
-
-@Composable
-private fun PairingButton(
-    text: String,
-    filled: Boolean,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .clickable(enabled = enabled) { onClick() },
-        shape = RoundedCornerShape(24.dp),
-        color = when {
-            !filled -> Color.White
-            enabled -> PrimaryGreen
-            else -> PrimaryGreen.copy(alpha = 0.4f)
-        },
-        border = if (filled) null else BorderStroke(1.dp, GrayBorder),
-        shadowElevation = if (filled && enabled) 3.dp else 0.dp
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (filled) Color.White else DeepDarkGreen
-            )
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Organisation Feed
-// -----------------------------------------------------------------------------
-
-@Composable
-private fun OrganisationFeedContent() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-    ) {
-
-        Text(
-            text = "ORGANISATION QR FEED",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            color = SecondaryText
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OrganisationCard(
-            name = "NDRF Unit 07",
-            description = "Emergency response channel"
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OrganisationCard(
-            name = "Relief Camp Alpha",
-            description = "Team communication channel"
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OrganisationCard(
-            name = "Field Operations",
-            description = "Local emergency network"
-        )
-    }
-}
-
-@Composable
-private fun OrganisationCard(
-    name: String,
-    description: String
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                1.dp,
-                GrayBorder,
-                RoundedCornerShape(16.dp)
-            ),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(SoftLightGreen),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "QR",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DeepDarkGreen
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryText
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = description,
-                    fontSize = 11.sp,
-                    color = SecondaryText
-                )
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Temporary QR Code
-// -----------------------------------------------------------------------------
-
-@Composable
-private fun FakeQrCode(
-    modifier: Modifier = Modifier
-) {
-    Canvas(
-        modifier = modifier
-            .background(Color.White)
-            .padding(4.dp)
-    ) {
-
-        val cells = 21
-        val cellSize = size.minDimension / cells
-
-        // Deterministic pattern for UI/demo purposes.
-        // Replace with a real QR generator when pairing logic is implemented.
-
-        for (row in 0 until cells) {
-            for (column in 0 until cells) {
-
-                val finderZone =
-                    (column < 7 && row < 7) ||
-                            (column >= cells - 7 && row < 7) ||
-                            (column < 7 && row >= cells - 7)
-
-                val finderPattern = if (finderZone) {
-                    val localColumn = when {
-                        column < 7 -> column
-                        else -> column - (cells - 7)
-                    }
-
-                    val localRow = when {
-                        row < 7 -> row
-                        true -> row - (cells - 7)
-                        else -> row
-                    }
-
-                    localColumn == 0 ||
-                            localColumn == 6 ||
-                            localRow == 0 ||
-                            localRow == 6 ||
-                            (localColumn in 2..4 && localRow in 2..4)
-                } else {
-                    false
-                }
-
-                val randomPattern =
-                    ((row * 17 + column * 31 + row * column) % 7 < 3)
-
-                if (finderPattern || (!finderZone && randomPattern)) {
-                    drawRect(
-                        color = Color(0xFF101717),
-                        topLeft = androidx.compose.ui.geometry.Offset(
-                            column * cellSize,
-                            row * cellSize
-                        ),
-                        size = androidx.compose.ui.geometry.Size(
-                            cellSize,
-                            cellSize
-                        ),
-                        style = Fill
-                    )
-                }
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Preview
-// -----------------------------------------------------------------------------
-
-@Preview(
-    showBackground = true,
-    showSystemUi = true
-)
-@Composable
-private fun PairingScreenPreview() {
-    PairingScreen()
 }
