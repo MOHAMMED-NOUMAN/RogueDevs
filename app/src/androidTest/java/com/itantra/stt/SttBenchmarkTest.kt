@@ -21,8 +21,8 @@ class SttBenchmarkTest {
 
     @Test
     fun benchmarkHindiAndEnglish() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val report = SttBenchmark.runAll(context)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val report = SttBenchmark.runAll(app = instrumentation.targetContext, samples = instrumentation.context)
         report.lineSequence().forEach { Log.i("SttBenchmark", it) }
         assertTrue(
             "a transcript did not match its reference:\n$report",

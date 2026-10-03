@@ -8,8 +8,9 @@ import org.json.JSONObject
 /**
  * Measures the on-device cost of one speech-to-text pass and checks the output is still correct.
  *
- * Call [run] from anywhere with a Context (an Activity, or the instrumented test in
- * androidTest/). It returns a plain-text report — paste that back to the ML side.
+ * Run by [SttBenchmarkTest]. The models are the app's assets ([app]); the sample clips are the
+ * test APK's own assets ([samples]), so they don't ship in the app. Returns a plain-text
+ * report — paste that back to the ML side.
  */
 object SttBenchmark {
 
@@ -17,20 +18,21 @@ object SttBenchmark {
     val LANGUAGES = listOf("whisper-hi" to "sample_hi", "whisper-en" to "sample_en")
 
     /** Benchmarks every language in [LANGUAGES] and returns one report. */
-    fun runAll(context: Context, threadCounts: IntArray = intArrayOf(1, 2, 4), iterations: Int = 5): String =
-        LANGUAGES.joinToString("\n") { (dir, sample) -> run(context, dir, sample, threadCounts, iterations) }
+    fun runAll(app: Context, samples: Context, threadCounts: IntArray = intArrayOf(1, 2, 4), iterations: Int = 5): String =
+        LANGUAGES.joinToString("\n") { (dir, sample) -> run(app, samples, dir, sample, threadCounts, iterations) }
 
     fun run(
-        context: Context,
+        app: Context,
+        samples: Context,
         assetDir: String = "whisper-hi",
         sampleBase: String = "sample_hi",
         threadCounts: IntArray = intArrayOf(1, 2, 4),
         iterations: Int = 5,
     ): String {
-        val meta = JSONObject(context.assets.open("$sampleBase.json").use { String(it.readBytes(), Charsets.UTF_8) })
+        val meta = JSONObject(samples.assets.open("$sampleBase.json").use { String(it.readBytes(), Charsets.UTF_8) })
         val expected = meta.getString("expected_output")
         val audioSeconds = meta.getDouble("duration_s")
-        val pcm = readWavMono16(context, "$sampleBase.wav")
+        val pcm = readWavMono16(samples, "$sampleBase.wav")
 
         val report = StringBuilder()
         report.appendLine("=== iTantra STT benchmark: $assetDir ===")
@@ -42,7 +44,7 @@ object SttBenchmark {
 
         for (threads in threadCounts) {
             val loadStart = System.nanoTime()
-            WhisperStt(context, assetDir, threads).use { stt ->
+            WhisperStt(app, assetDir, threads).use { stt ->
                 val coldLoadMs = (System.nanoTime() - loadStart) / 1_000_000
 
                 val first = stt.transcribe(pcm)          // cold run: includes lazy allocations

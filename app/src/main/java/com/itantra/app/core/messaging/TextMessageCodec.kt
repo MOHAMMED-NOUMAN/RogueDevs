@@ -3,9 +3,9 @@ package com.itantra.app.core.messaging
 import com.itantra.app.core.transport.MAX_PACKET_SIZE
 
 /** Language of a message's text, as carried on the wire. */
-enum class MessageLanguage(val code: Int) {
-    ENGLISH(0),
-    HINDI(1);
+enum class MessageLanguage(val code: Int, val label: String) {
+    ENGLISH(0, "English"),
+    HINDI(1, "Hindi");
 
     companion object {
         fun fromCode(code: Int): MessageLanguage? = entries.firstOrNull { it.code == code }

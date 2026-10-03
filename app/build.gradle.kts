@@ -62,7 +62,6 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.splashscreen)
@@ -77,30 +76,21 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    // Room (local DB — messages, team roster, etc.)
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
-    ksp(libs.room.compiler)
-
     // DataStore (settings/prefs — replaces SharedPreferences)
     implementation(libs.datastore.preferences)
 
-    // Offline speech-to-text (Whisper ONNX graphs in assets)
+    // Offline speech-to-text and voices (Whisper and MMS ONNX graphs in assets)
     implementation(libs.onnxruntime.android)
 
     // Coroutines + Serialization
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
 
-    // Debug-only Compose tooling (layout inspector, @Preview rendering)
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
-
     // JVM unit tests
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 
-    // On-device tests (the STT benchmark runs here)
+    // On-device tests (the STT and TTS benchmarks run here)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.test.runner)
 }

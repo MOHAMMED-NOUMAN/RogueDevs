@@ -63,12 +63,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.itantra.app.core.messaging.SosLocation
 import com.itantra.app.core.sos.OutgoingSos
 import com.itantra.app.feature.emergency.viewmodel.SosViewModel
+import com.itantra.app.ui.theme.SecondaryText
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 private val OffWhite = Color(0xFFF8FAF7)
 private val DeepDarkGreen = Color(0xFF193D25)
-private val SecondaryText = Color(0xFF71807A)
 private val SOSRed = Color(0xFFE53945)
 
 /** How long SOS must be held, so it can't go off by accident. */

@@ -2,7 +2,9 @@ package com.itantra.app
 
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -46,8 +48,15 @@ class MainActivity : ComponentActivity() {
     /** An incoming SOS opens the app on top of the lock screen and turns the screen on. */
     private fun showOverLockScreenFor(intent: Intent?) {
         val sos = intent?.getBooleanExtra(EXTRA_SOS, false) == true
-        setShowWhenLocked(sos)
-        setTurnScreenOn(sos)
+        if (Build.VERSION.SDK_INT >= 27) {
+            setShowWhenLocked(sos)
+            setTurnScreenOn(sos)
+        } else {
+            // Android 8.0 has only the window flags.
+            @Suppress("DEPRECATION")
+            val flags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            if (sos) window.addFlags(flags) else window.clearFlags(flags)
+        }
     }
 
     companion object {

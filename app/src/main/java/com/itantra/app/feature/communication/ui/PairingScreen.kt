@@ -30,9 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.BluetoothSearching
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.BluetoothSearching
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Dialpad
 import androidx.compose.material.icons.rounded.Pin
@@ -71,11 +71,11 @@ import com.itantra.app.feature.pairing.rememberPairingActions
 import com.itantra.app.ui.theme.DeepDarkGreen
 import com.itantra.app.ui.theme.GrayBorder
 import com.itantra.app.ui.theme.OffWhite
+import com.itantra.app.ui.theme.PrimaryGreen
+import com.itantra.app.ui.theme.PrimaryText
+import com.itantra.app.ui.theme.SecondaryText
 import com.itantra.app.ui.theme.SoftLightGreen
 
-private val PrimaryGreen = Color(0xFF19B878)
-private val PrimaryText = Color(0xFF17231F)
-private val SecondaryText = Color(0xFF71807A)
 private val ProblemRed = Color(0xFFC0392B)
 
 /**
@@ -598,7 +598,7 @@ private fun ConnectedStep(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (connected) Icons.Rounded.CheckCircle else Icons.Rounded.BluetoothSearching,
+                        imageVector = if (connected) Icons.Rounded.CheckCircle else Icons.AutoMirrored.Rounded.BluetoothSearching,
                         contentDescription = null,
                         tint = accent,
                         modifier = Modifier.size(32.dp)
@@ -810,7 +810,7 @@ private fun SearchingPulse(modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.BluetoothSearching,
+                imageVector = Icons.AutoMirrored.Rounded.BluetoothSearching,
                 contentDescription = "Searching",
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)

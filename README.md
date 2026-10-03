@@ -322,10 +322,11 @@ app/src/main/java/com/itantra/
 │   │   └── signup/         Signup, language picker
 │   ├── navigation/         Signup → Home
 │   └── ui/                 Theme, logo
-├── stt/                    Whisper ONNX inference and benchmark
+├── stt/                    Whisper ONNX inference
 └── tts/                    MMS voice ONNX inference
 
-app/src/main/assets/        Speech models (whisper-en/hi), voices (mms-tts-en/hi), benchmark clips
+app/src/main/assets/        Speech models (whisper-en/hi) and voices (mms-tts-en/hi)
+app/src/androidTest/        Speech-to-text and voice benchmarks, with their sample clips
 app/src/transportDebug/     Two-phone link test screen
 backlog/                    Team map and organisation feed screens, kept for later
 docs/assets/                README images

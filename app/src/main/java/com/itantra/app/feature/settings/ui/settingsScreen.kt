@@ -70,11 +70,11 @@ import com.itantra.app.feature.signup.ui.LanguagePicker
 import com.itantra.app.ui.theme.DeepDarkGreen
 import com.itantra.app.ui.theme.GrayBorder
 import com.itantra.app.ui.theme.OffWhite
+import com.itantra.app.ui.theme.PrimaryGreen
+import com.itantra.app.ui.theme.PrimaryText
+import com.itantra.app.ui.theme.SecondaryText
 import com.itantra.app.ui.theme.SoftLightGreen
 
-private val PrimaryGreen = Color(0xFF19B878)
-private val PrimaryText = Color(0xFF17231F)
-private val SecondaryText = Color(0xFF71807A)
 private val CardBackground = Color.White
 private val DangerRed = Color(0xFFD32F2F)
 

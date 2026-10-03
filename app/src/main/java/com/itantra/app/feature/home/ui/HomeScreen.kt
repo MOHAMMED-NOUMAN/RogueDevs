@@ -79,7 +79,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itantra.app.core.messaging.IncomingMessage
-import com.itantra.app.core.messaging.MessageLanguage
 import com.itantra.app.core.messaging.SendStatus
 import com.itantra.app.core.ml.ReadAloudState
 import com.itantra.app.core.ml.Transcript
@@ -581,10 +580,7 @@ private fun IncomingMessageCard(
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = when (message.language) {
-                        MessageLanguage.ENGLISH -> "English"
-                        MessageLanguage.HINDI -> "Hindi"
-                    },
+                    text = message.language.label,
                     fontSize = 11.sp,
                     color = Color.Gray,
                     modifier = Modifier.weight(1f)
