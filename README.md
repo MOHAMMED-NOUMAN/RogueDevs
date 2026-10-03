@@ -221,8 +221,8 @@ Text-to-speech on the same phone, one sentence, 4 threads:
 
 | Voice | Speech length | Time to make it | Voice load (at app start) |
 |---|:---:|:---:|:---:|
-| English | 3.5 s | **~2.4 s** | ~2.5–3 s |
-| Hindi | 2.4 s | **~1.3 s** | ~3 s |
+| English | 3.7 s | **~2.0 s** | ~3 s |
+| Hindi | 4.4 s | **~2.5 s** | ~3 s |
 
 <br/>
 

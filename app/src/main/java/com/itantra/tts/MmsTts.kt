@@ -34,7 +34,6 @@ class MmsTts(
     private val options = OrtSession.SessionOptions().apply { setIntraOpNumThreads(threads) }
     private val session: OrtSession
     private val symbols: Map<Char, Long>
-    private val blank: Long
 
     val sampleRate: Int
 
@@ -49,7 +48,6 @@ class MmsTts(
             if (split == 1) parsed[line[0]] = line.substring(2).toLong()
         }
         symbols = parsed
-        blank = parsed['_'] ?: error("$assetDir/tokens.txt has no blank symbol '_'")
 
         session = context.assets.openFd("$assetDir/model.onnx").use { fd ->
             FileInputStream(fd.fileDescriptor).channel.use { channel ->
@@ -64,8 +62,10 @@ class MmsTts(
         val ids = text.mapNotNull { symbols[it] }
         if (ids.isEmpty()) return FloatArray(0)
 
-        // MMS VITS expects the blank symbol before, between and after the characters.
-        val input = LongArray(ids.size * 2 + 1) { blank }
+        // MMS VITS expects symbol 0 before, between and after the characters, as Hugging Face's
+        // VitsTokenizer does (add_blank). Not '_': that is an ordinary symbol, and putting it
+        // between the characters gives speech-like gibberish of the right length.
+        val input = LongArray(ids.size * 2 + 1) { BLANK }
         ids.forEachIndexed { i, id -> input[i * 2 + 1] = id }
 
         return OnnxTensor.createTensor(env, LongBuffer.wrap(input), longArrayOf(1, input.size.toLong())).use { x ->
@@ -79,5 +79,9 @@ class MmsTts(
     override fun close() {
         session.close()
         options.close()
+    }
+
+    private companion object {
+        const val BLANK = 0L
     }
 }
