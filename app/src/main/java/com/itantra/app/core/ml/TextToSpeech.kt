@@ -7,7 +7,7 @@ import android.media.AudioTrack
 import android.util.Log
 import com.itantra.app.core.messaging.IncomingMessage
 import com.itantra.app.core.messaging.MessageLanguage
-import com.itantra.app.core.prefs.SpeechLanguage
+import com.itantra.app.core.messaging.toMessageLanguage
 import com.itantra.app.core.prefs.UserPreferences
 import com.itantra.tts.MmsTts
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,16 +31,20 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** What reading aloud is doing, for the message card. */
+/**
+ * What reading aloud is doing. [Speaking.source] and [Problem.source] are what was read (an
+ * [IncomingMessage], or the user's own [Transcript]), so each card can tell it is the one.
+ */
 sealed interface ReadAloudState {
     data object Idle : ReadAloudState
-    data class Speaking(val message: IncomingMessage) : ReadAloudState
-    data class Problem(val message: IncomingMessage, val reason: String) : ReadAloudState
+    data class Speaking(val source: Any) : ReadAloudState
+    data class Problem(val source: Any, val reason: String) : ReadAloudState
 }
 
 /**
  * Reads the teammate's messages aloud, each in its own language, with the offline MMS voices.
- * Messages are spoken one after another in arrival order; [playAgain] interrupts and replays.
+ * Messages are spoken one after another in arrival order; [playNow] interrupts (Play again,
+ * and Play aloud for the user's own transcript, to try the voices on one phone).
  * One voice is in memory at a time (the Settings language is loaded ahead of time), and long
  * messages are spoken sentence by sentence, the next one synthesized while the current plays.
  */
@@ -54,7 +58,9 @@ class TextToSpeech @Inject constructor(
     private var voiceLanguage: MessageLanguage? = null
     private var voice: MmsTts? = null
 
-    private val pending = ArrayDeque<IncomingMessage>()
+    private class Item(val source: Any, val text: String, val language: MessageLanguage)
+
+    private val pending = ArrayDeque<Item>()
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var playing: Job? = null
 
@@ -63,10 +69,7 @@ class TextToSpeech @Inject constructor(
 
     init {
         scope.launch {
-            val preload = when (prefs.speechLanguage.first()) {
-                SpeechLanguage.ENGLISH -> MessageLanguage.ENGLISH
-                SpeechLanguage.HINDI -> MessageLanguage.HINDI
-            }
+            val preload = prefs.speechLanguage.first().toMessageLanguage()
             runCatching { voiceLock.withLock { load(preload) } }
                 .onFailure { Log.w(TAG, "Couldn't preload the $preload voice", it) }
         }
@@ -82,32 +85,32 @@ class TextToSpeech @Inject constructor(
 
     /** Reads [message] once the ones before it have been read. */
     fun speak(message: IncomingMessage) {
-        synchronized(pending) { pending.addLast(message) }
+        synchronized(pending) { pending.addLast(Item(message, message.text, message.language)) }
         wake.trySend(Unit)
     }
 
-    /** Stops whatever is playing and reads [message] now; queued messages follow. */
-    fun playAgain(message: IncomingMessage) {
+    /** Stops whatever is playing and reads [text] now; queued messages follow. */
+    fun playNow(source: Any, text: String, language: MessageLanguage) {
         val interrupted = synchronized(pending) {
-            pending.addFirst(message)
+            pending.addFirst(Item(source, text, language))
             playing
         }
         interrupted?.cancel()
         wake.trySend(Unit)
     }
 
-    private suspend fun play(message: IncomingMessage) {
-        _state.value = ReadAloudState.Speaking(message)
+    private suspend fun play(item: Item) {
+        _state.value = ReadAloudState.Speaking(item.source)
         try {
-            val sentences = SpeakableText.chunks(message.text, message.language)
-            if (sentences.isNotEmpty()) speakSentences(sentences, message.language)
+            val sentences = SpeakableText.chunks(item.text, item.language)
+            if (sentences.isNotEmpty()) speakSentences(sentences, item.language)
             _state.value = ReadAloudState.Idle
         } catch (e: CancellationException) {
             _state.value = ReadAloudState.Idle
             throw e
         } catch (e: Throwable) { // OutOfMemoryError included: a voice needs ~120 MB
             Log.e(TAG, "Reading aloud failed", e)
-            _state.value = ReadAloudState.Problem(message, e.message ?: e.toString())
+            _state.value = ReadAloudState.Problem(item.source, e.message ?: e.toString())
         }
     }
 

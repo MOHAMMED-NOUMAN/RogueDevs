@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Home
@@ -81,6 +82,7 @@ import com.itantra.app.core.messaging.IncomingMessage
 import com.itantra.app.core.messaging.MessageLanguage
 import com.itantra.app.core.messaging.SendStatus
 import com.itantra.app.core.ml.ReadAloudState
+import com.itantra.app.core.ml.Transcript
 import com.itantra.app.core.permissions.LinkPermissions
 import com.itantra.app.core.transport.LinkStatus
 import com.itantra.app.feature.communication.ui.PairingScreen
@@ -196,7 +198,11 @@ fun HomeScreen(
 
                             Spacer(modifier = Modifier.height(20.dp))
 
-                            TranscriptSection(uiState = uiState)
+                            TranscriptSection(
+                                uiState = uiState,
+                                readAloud = readAloud,
+                                onPlayAloud = { communicationViewModel.onPlayTranscript(it) }
+                            )
                         }
                     }
                 }
@@ -433,10 +439,15 @@ private fun HomeHoldToTalkSection(
 
 /**
  * What Hold to Talk heard, shown once after each release so it can be checked, with the
- * delivery status of the message it sent.
+ * delivery status of the message it sent. "Play aloud" reads it in the offline voice, so the
+ * voices can be tried with a single phone.
  */
 @Composable
-private fun TranscriptSection(uiState: CommunicationUiState) {
+private fun TranscriptSection(
+    uiState: CommunicationUiState,
+    readAloud: ReadAloudState,
+    onPlayAloud: (Transcript) -> Unit
+) {
     when (uiState) {
         CommunicationUiState.Transcribing -> Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(
@@ -480,7 +491,17 @@ private fun TranscriptSection(uiState: CommunicationUiState) {
                         color = Color.Gray
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-                    SendStatusRow(uiState.sendStatus)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.weight(1f)) { SendStatusRow(uiState.sendStatus) }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        ReadAloudButton(
+                            label = "Play aloud",
+                            icon = Icons.AutoMirrored.Rounded.VolumeUp,
+                            speaking = readAloud is ReadAloudState.Speaking && readAloud.source == t,
+                            onClick = { onPlayAloud(t) }
+                        )
+                    }
+                    ReadAloudProblem(readAloud, source = t)
                 }
             }
         }
@@ -568,49 +589,66 @@ private fun IncomingMessageCard(
                     color = Color.Gray,
                     modifier = Modifier.weight(1f)
                 )
-                if (readAloud is ReadAloudState.Speaking && readAloud.message == message) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.GraphicEq,
-                            contentDescription = null,
-                            tint = DeepDarkGreen,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "Reading aloud…", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepDarkGreen)
-                    }
-                } else {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White)
-                            .clickable(onClick = onPlayAgain)
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Replay,
-                            contentDescription = null,
-                            tint = DeepDarkGreen,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "Play again", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepDarkGreen)
-                    }
-                }
-            }
-            if (readAloud is ReadAloudState.Problem && readAloud.message == message) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Couldn't read this aloud: ${readAloud.reason}",
-                    fontSize = 12.sp,
-                    color = Color(0xFFD32F2F)
+                ReadAloudButton(
+                    label = "Play again",
+                    icon = Icons.Rounded.Replay,
+                    speaking = readAloud is ReadAloudState.Speaking && readAloud.source == message,
+                    onClick = onPlayAgain
                 )
             }
+            ReadAloudProblem(readAloud, source = message)
         }
+    }
+}
+
+/** Reads a card's text aloud; while it is being read, says so instead. */
+@Composable
+private fun ReadAloudButton(label: String, icon: ImageVector, speaking: Boolean, onClick: () -> Unit) {
+    if (speaking) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.GraphicEq,
+                contentDescription = null,
+                tint = DeepDarkGreen,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(text = "Reading aloud…", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepDarkGreen)
+        }
+    } else {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(SoftLightGreen.copy(alpha = 0.35f))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 7.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = DeepDarkGreen,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepDarkGreen)
+        }
+    }
+}
+
+/** Why [source] couldn't be read aloud, if that is what last happened to it. */
+@Composable
+private fun ReadAloudProblem(readAloud: ReadAloudState, source: Any) {
+    if (readAloud is ReadAloudState.Problem && readAloud.source == source) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Couldn't read this aloud: ${readAloud.reason}",
+            fontSize = 12.sp,
+            color = Color(0xFFD32F2F)
+        )
     }
 }
 

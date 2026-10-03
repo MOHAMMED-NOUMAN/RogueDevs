@@ -110,12 +110,13 @@ class MessageCenter @Inject constructor(
         else -> SendStatus.SENDING
     }
 
-    private fun SpeechLanguage.toMessageLanguage() = when (this) {
-        SpeechLanguage.ENGLISH -> MessageLanguage.ENGLISH
-        SpeechLanguage.HINDI -> MessageLanguage.HINDI
-    }
-
     private companion object {
         const val KEEP = 20
     }
+}
+
+/** The wire language for text spoken in [this] Settings language. */
+fun SpeechLanguage.toMessageLanguage() = when (this) {
+    SpeechLanguage.ENGLISH -> MessageLanguage.ENGLISH
+    SpeechLanguage.HINDI -> MessageLanguage.HINDI
 }

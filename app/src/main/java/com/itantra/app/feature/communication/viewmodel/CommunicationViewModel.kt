@@ -6,6 +6,7 @@ import com.itantra.app.core.audio.VoiceRecorder
 import com.itantra.app.core.messaging.IncomingMessage
 import com.itantra.app.core.messaging.MessageCenter
 import com.itantra.app.core.messaging.SendStatus
+import com.itantra.app.core.messaging.toMessageLanguage
 import com.itantra.app.core.ml.ReadAloudState
 import com.itantra.app.core.ml.SpeechToText
 import com.itantra.app.core.ml.TextToSpeech
@@ -103,7 +104,11 @@ class CommunicationViewModel @Inject constructor(
     }
 
     /** Reads [message] aloud again, interrupting whatever is playing. */
-    fun onPlayAgain(message: IncomingMessage) = textToSpeech.playAgain(message)
+    fun onPlayAgain(message: IncomingMessage) = textToSpeech.playNow(message, message.text, message.language)
+
+    /** Reads the user's own transcript aloud: tries the voices with a single phone. */
+    fun onPlayTranscript(transcript: Transcript) =
+        textToSpeech.playNow(transcript, transcript.text, transcript.language.toMessageLanguage())
 
     fun onMicPermissionDenied() {
         _uiState.value = CommunicationUiState.Problem("Allow microphone access to use Hold to Talk.")
