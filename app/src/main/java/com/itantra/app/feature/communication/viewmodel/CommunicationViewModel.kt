@@ -6,7 +6,9 @@ import com.itantra.app.core.audio.VoiceRecorder
 import com.itantra.app.core.messaging.IncomingMessage
 import com.itantra.app.core.messaging.MessageCenter
 import com.itantra.app.core.messaging.SendStatus
+import com.itantra.app.core.ml.ReadAloudState
 import com.itantra.app.core.ml.SpeechToText
+import com.itantra.app.core.ml.TextToSpeech
 import com.itantra.app.core.ml.Transcript
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -38,6 +40,7 @@ class CommunicationViewModel @Inject constructor(
     private val recorder: VoiceRecorder,
     private val speechToText: SpeechToText,
     private val messages: MessageCenter,
+    private val textToSpeech: TextToSpeech,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<CommunicationUiState>(CommunicationUiState.Idle)
@@ -45,6 +48,9 @@ class CommunicationViewModel @Inject constructor(
 
     /** Messages from the teammate, newest first. */
     val incoming: StateFlow<List<IncomingMessage>> = messages.incoming
+
+    /** Whether a message is being read aloud. */
+    val readAloud: StateFlow<ReadAloudState> = textToSpeech.state
     private var sendJob: Job? = null
 
     /** Starts recording. The caller has already checked the microphone permission. */
@@ -95,6 +101,9 @@ class CommunicationViewModel @Inject constructor(
             }
         }
     }
+
+    /** Reads [message] aloud again, interrupting whatever is playing. */
+    fun onPlayAgain(message: IncomingMessage) = textToSpeech.playAgain(message)
 
     fun onMicPermissionDenied() {
         _uiState.value = CommunicationUiState.Problem("Allow microphone access to use Hold to Talk.")

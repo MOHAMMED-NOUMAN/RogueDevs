@@ -9,6 +9,14 @@ It includes third-party components, each under its own license:
   from OpenAI Whisper (tiny).
   MIT License, Copyright (c) 2022 OpenAI.
 
+- Voices in app/src/main/assets/mms-tts-en and mms-tts-hi are Meta's MMS-TTS
+  English and Hindi models (facebook/mms-tts-eng, facebook/mms-tts-hin), exported to
+  ONNX (huggingface.co/sriram09764/itantra-tts-onnx) with weights stored as 16-bit.
+  Copyright (c) Meta Platforms, Inc.
+  Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0),
+  https://creativecommons.org/licenses/by-nc/4.0/
+  These voices may not be used commercially; the Apache License does not apply to them.
+
 - ONNX Runtime for Android, which runs the speech models on the phone.
   MIT License, Copyright (c) Microsoft Corporation.
 

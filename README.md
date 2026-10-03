@@ -44,7 +44,8 @@ When towers and internet go down in a disaster, voice is what rescue teams need 
 voice needs a network. **iTantra** keeps teams talking with nothing but the phones in their
 pockets:
 
-- Speech is turned into **text on the phone**, so only a few bytes travel instead of audio.
+- Speech is turned into **text on the phone**, so only a few bytes travel instead of audio,
+  and the teammate's phone **reads it aloud** in the sender's language.
 - Phones connect **directly to each other**, over Wi-Fi Direct first and Bluetooth as backup.
 - An **SOS** carries who, where and when, and keeps going until a teammate answers.
 
@@ -116,6 +117,14 @@ Name and preferred languages, speech language, offline-link switch and emergency
 saved on the phone. A live notification shows the link status.
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+<img src="https://api.iconify.design/material-symbols/record-voice-over-rounded.svg?color=%2319B878" width="30" />
+<h3>Read aloud</h3>
+Each message from the teammate is spoken as it arrives, in the language it was said in (English
+or Hindi), by an offline voice on the phone. <b>Play again</b> repeats the latest one.
+</td>
+</tr>
 </table>
 
 <br/>
@@ -140,7 +149,8 @@ flowchart LR
     D -. backup .-> F{{Bluetooth}}
     E --> G[Teammate's phone]
     F --> G
-    G --> H([Rejoined and shown])
+    G --> H[Rejoined and shown]
+    H --> I([MMS TTS<br/>read aloud])
 ```
 
 <br/>
@@ -178,6 +188,7 @@ sequenceDiagram
 | <img src="https://api.iconify.design/logos/android-icon.svg" width="26" /> | **Android SDK 36** (min 26) | Platform, foreground service, notifications |
 | <img src="https://api.iconify.design/simple-icons/onnx.svg?color=%23005CED" width="26" /> | **ONNX Runtime** | Running the speech models on the phone |
 | <img src="https://api.iconify.design/material-symbols/graphic-eq-rounded.svg?color=%2319B878" width="26" /> | **Whisper-tiny, fine-tuned per language** (INT8, ~42 MB each) | Speech-to-text in English and Hindi |
+| <img src="https://api.iconify.design/material-symbols/record-voice-over-rounded.svg?color=%2319B878" width="26" /> | **Meta MMS-TTS voices** (VITS, 16-bit weights, ~58 MB each) | Reading messages aloud in English and Hindi |
 | <img src="https://api.iconify.design/material-symbols/wifi-rounded.svg?color=%231E3A21" width="26" /> | **Wi-Fi Direct** | Main phone-to-phone link |
 | <img src="https://api.iconify.design/material-symbols/bluetooth-rounded.svg?color=%230082FC" width="26" /> | **Bluetooth RFCOMM** | Pairing and backup link |
 | <img src="https://api.iconify.design/material-symbols/location-on-rounded.svg?color=%23E53945" width="26" /> | **Android LocationManager** | GPS for SOS, without Play Services |
@@ -203,6 +214,15 @@ Speech-to-text measured on a **Samsung Galaxy A54** (Exynos 1380, 8 cores), 4-se
 |---|:---:|:---:|
 | English | **~0.8 s** | Exact |
 | Hindi | **~1.7 s** | Exact |
+
+<br/>
+
+Text-to-speech on the same phone, one sentence, 4 threads:
+
+| Voice | Speech length | Time to make it | Voice load (at app start) |
+|---|:---:|:---:|:---:|
+| English | 3.5 s | **~2.4 s** | ~2.5–3 s |
+| Hindi | 2.4 s | **~1.3 s** | ~3 s |
 
 <br/>
 
@@ -264,11 +284,12 @@ The speech language is set in **Settings → Speech Language**.
 
 | Command | What it does |
 |---|---|
-| `./gradlew testDebugUnitTest` | Unit tests: link engine, message splitting, SOS packets |
+| `./gradlew testDebugUnitTest` | Unit tests: link engine, message splitting, SOS packets, text for reading aloud |
 | `./gradlew assembleTransportDebug` | Debug APK with the two-phone link test screen |
 | `adb shell am instrument -w -e class com.itantra.stt.SttBenchmarkTest com.itantra.app.test/androidx.test.runner.AndroidJUnitRunner` | Speech-to-text speed and accuracy on a phone; report in `adb logcat -s SttBenchmark` |
+| `adb shell am instrument -w -e class com.itantra.tts.TtsBenchmarkTest com.itantra.app.test/androidx.test.runner.AndroidJUnitRunner` | Text-to-speech voice load and speed on a phone; report in `adb logcat -s TtsBenchmark` |
 
-The speech benchmark uses `am instrument` instead of `connectedAndroidTest`, which would uninstall
+The speech benchmarks use `am instrument` instead of `connectedAndroidTest`, which would uninstall
 the app and its saved profile afterwards.
 
 <br/>
@@ -287,7 +308,7 @@ app/src/main/java/com/itantra/
 │   │   ├── audio/          Push-to-talk recording
 │   │   ├── location/       GPS position for SOS
 │   │   ├── messaging/      Message format, splitting, send and receive
-│   │   ├── ml/             Speech-to-text service
+│   │   ├── ml/             Speech-to-text and read-aloud services
 │   │   ├── permissions/    Runtime permissions for the link
 │   │   ├── prefs/          Saved profile, speech language, emergency numbers
 │   │   ├── sos/            SOS sending, alarm and alert
@@ -301,9 +322,10 @@ app/src/main/java/com/itantra/
 │   │   └── signup/         Signup, language picker
 │   ├── navigation/         Signup → Home
 │   └── ui/                 Theme, logo
-└── stt/                    Whisper ONNX inference and benchmark
+├── stt/                    Whisper ONNX inference and benchmark
+└── tts/                    MMS voice ONNX inference
 
-app/src/main/assets/        Speech models (whisper-en, whisper-hi) and benchmark clips
+app/src/main/assets/        Speech models (whisper-en/hi), voices (mms-tts-en/hi), benchmark clips
 app/src/transportDebug/     Two-phone link test screen
 backlog/                    Team map and organisation feed screens, kept for later
 docs/assets/                README images
@@ -344,6 +366,13 @@ unnecessary dependencies, abstractions or duplicate implementations.
 
 iTantra is open source under the **[Apache License 2.0](LICENSE)**. Third-party parts it ships
 (the Whisper speech models and ONNX Runtime, both MIT) are credited in **[NOTICE](NOTICE)**.
+
+The read-aloud voices are Meta's **MMS-TTS** English and Hindi models
+([facebook/mms-tts-eng](https://huggingface.co/facebook/mms-tts-eng),
+[facebook/mms-tts-hin](https://huggingface.co/facebook/mms-tts-hin)), © Meta Platforms, Inc.,
+licensed **[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)**: free to use with
+credit, **non-commercial only**. Apache 2.0 does not apply to them. Any commercial use needs
+Meta's permission or other voices.
 
 <br/>
 

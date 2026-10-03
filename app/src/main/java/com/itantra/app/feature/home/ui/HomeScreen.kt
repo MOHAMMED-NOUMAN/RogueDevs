@@ -43,8 +43,10 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.LinkOff
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
@@ -78,6 +80,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.itantra.app.core.messaging.IncomingMessage
 import com.itantra.app.core.messaging.MessageLanguage
 import com.itantra.app.core.messaging.SendStatus
+import com.itantra.app.core.ml.ReadAloudState
 import com.itantra.app.core.permissions.LinkPermissions
 import com.itantra.app.core.transport.LinkStatus
 import com.itantra.app.feature.communication.ui.PairingScreen
@@ -118,6 +121,7 @@ fun HomeScreen(
 ) {
     val uiState by communicationViewModel.uiState.collectAsState()
     val incoming by communicationViewModel.incoming.collectAsState()
+    val readAloud by communicationViewModel.readAloud.collectAsState()
     val pairing by pairingViewModel.pairing.collectAsState()
     val linkRunning by pairingViewModel.linkRunning.collectAsState()
     val linkStatus by pairingViewModel.linkStatus.collectAsState()
@@ -163,7 +167,11 @@ fun HomeScreen(
 
                     incoming.firstOrNull()?.let { latest ->
                         Spacer(modifier = Modifier.height(16.dp))
-                        IncomingMessageCard(latest)
+                        IncomingMessageCard(
+                            message = latest,
+                            readAloud = readAloud,
+                            onPlayAgain = { communicationViewModel.onPlayAgain(latest) }
+                        )
                     }
 
                     Box(
@@ -506,9 +514,13 @@ private fun SendStatusRow(status: SendStatus) {
     }
 }
 
-/** The teammate's latest message. */
+/** The teammate's latest message, read aloud as it arrives, with a "Play again" button. */
 @Composable
-private fun IncomingMessageCard(message: IncomingMessage) {
+private fun IncomingMessageCard(
+    message: IncomingMessage,
+    readAloud: ReadAloudState,
+    onPlayAgain: () -> Unit
+) {
     val time = remember(message.receivedAtMs) {
         java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(message.receivedAtMs))
     }
@@ -545,15 +557,59 @@ private fun IncomingMessageCard(message: IncomingMessage) {
                 color = DeepDarkGreen,
                 lineHeight = 25.sp
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = when (message.language) {
-                    MessageLanguage.ENGLISH -> "English"
-                    MessageLanguage.HINDI -> "Hindi"
-                },
-                fontSize = 11.sp,
-                color = Color.Gray
-            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = when (message.language) {
+                        MessageLanguage.ENGLISH -> "English"
+                        MessageLanguage.HINDI -> "Hindi"
+                    },
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.weight(1f)
+                )
+                if (readAloud is ReadAloudState.Speaking && readAloud.message == message) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.GraphicEq,
+                            contentDescription = null,
+                            tint = DeepDarkGreen,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Reading aloud…", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepDarkGreen)
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.White)
+                            .clickable(onClick = onPlayAgain)
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Replay,
+                            contentDescription = null,
+                            tint = DeepDarkGreen,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Play again", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepDarkGreen)
+                    }
+                }
+            }
+            if (readAloud is ReadAloudState.Problem && readAloud.message == message) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Couldn't read this aloud: ${readAloud.reason}",
+                    fontSize = 12.sp,
+                    color = Color(0xFFD32F2F)
+                )
+            }
         }
     }
 }

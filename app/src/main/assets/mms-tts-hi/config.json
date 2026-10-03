@@ -1,0 +1,8 @@
+{
+  "model_type": "vits",
+  "sample_rate": 16000,
+  "num_speakers": 1,
+  "add_blank": true,
+  "language": "hi",
+  "display_name": "Hindi"
+}
