@@ -14,6 +14,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -45,8 +46,9 @@ sealed interface ReadAloudState {
  * Reads the teammate's messages aloud, each in its own language, with the offline MMS voices.
  * Messages are spoken one after another in arrival order; [playNow] interrupts (Play again,
  * and Play aloud for the user's own transcript, to try the voices on one phone).
- * One voice is in memory at a time (the Settings language is loaded ahead of time), and long
- * messages are spoken sentence by sentence, the next one synthesized while the current plays.
+ * One voice is in memory at a time (the Settings language is loaded ahead of time). Audio is
+ * made sentence by sentence and playback starts with the first one; the last few texts' audio
+ * is kept, so Play again is instant, and [prepare] makes audio before it is asked for.
  */
 @Singleton
 class TextToSpeech @Inject constructor(
@@ -59,6 +61,17 @@ class TextToSpeech @Inject constructor(
     private var voice: MmsTts? = null
 
     private class Item(val source: Any, val text: String, val language: MessageLanguage)
+
+    /** One text's audio, sentence by sentence; each completes as soon as it is synthesized. */
+    private class Rendering(sentences: Int) {
+        val sampleRate = CompletableDeferred<Int>()
+        val sentences = List(sentences) { CompletableDeferred<FloatArray>() }
+    }
+
+    /** The last [KEEP_RENDERED] texts' audio, by source, least recently used first. */
+    private val renderings = object : LinkedHashMap<Any, Rendering>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Any, Rendering>) = size > KEEP_RENDERED
+    }
 
     private val pending = ArrayDeque<Item>()
     private val wake = Channel<Unit>(Channel.CONFLATED)
@@ -83,10 +96,17 @@ class TextToSpeech @Inject constructor(
         }
     }
 
-    /** Reads [message] once the ones before it have been read. */
+    /** Reads [message] once the ones before it have been read; its audio is made right away. */
     fun speak(message: IncomingMessage) {
-        synchronized(pending) { pending.addLast(Item(message, message.text, message.language)) }
+        val item = Item(message, message.text, message.language)
+        render(item)
+        synchronized(pending) { pending.addLast(item) }
         wake.trySend(Unit)
+    }
+
+    /** Makes [text]'s audio now, so a later [playNow] for [source] starts at once. */
+    fun prepare(source: Any, text: String, language: MessageLanguage) {
+        render(Item(source, text, language))
     }
 
     /** Stops whatever is playing and reads [text] now; queued messages follow. */
@@ -102,8 +122,8 @@ class TextToSpeech @Inject constructor(
     private suspend fun play(item: Item) {
         _state.value = ReadAloudState.Speaking(item.source)
         try {
-            val sentences = SpeakableText.chunks(item.text, item.language)
-            if (sentences.isNotEmpty()) speakSentences(sentences, item.language)
+            val rendering = render(item)
+            if (rendering.sentences.isNotEmpty()) playRendering(rendering)
             _state.value = ReadAloudState.Idle
         } catch (e: CancellationException) {
             _state.value = ReadAloudState.Idle
@@ -114,27 +134,45 @@ class TextToSpeech @Inject constructor(
         }
     }
 
-    /** Synthesizes the next sentence while the current one plays. */
-    private suspend fun speakSentences(sentences: List<String>, language: MessageLanguage) = coroutineScope {
-        val audio = Channel<FloatArray>(capacity = 1)
-        var sampleRate = 0
-        launch {
-            for (sentence in sentences) {
-                val samples = voiceLock.withLock {
-                    val v = load(language)
-                    sampleRate = v.sampleRate
-                    v.synthesize(sentence)
+    /**
+     * [item]'s audio: the kept one if there is one, otherwise a new one being made in the
+     * background. Making continues even if playback is cancelled, so a replay finds it ready.
+     */
+    private fun render(item: Item): Rendering = synchronized(renderings) {
+        renderings[item.source]?.let { return it }
+        val sentences = SpeakableText.chunks(item.text, item.language)
+        val rendering = Rendering(sentences.size)
+        renderings[item.source] = rendering
+        scope.launch {
+            try {
+                // One text at a time holds the voice, so two languages don't swap voices per sentence.
+                voiceLock.withLock {
+                    val voice = load(item.language)
+                    rendering.sampleRate.complete(voice.sampleRate)
+                    sentences.forEachIndexed { i, sentence -> rendering.sentences[i].complete(voice.synthesize(sentence)) }
                 }
-                audio.send(samples)
+            } catch (e: Throwable) {
+                // Forget the failed audio so the next try makes it again.
+                synchronized(renderings) {
+                    if (renderings[item.source] === rendering) renderings.remove(item.source)
+                }
+                rendering.sampleRate.completeExceptionally(e)
+                rendering.sentences.forEach { it.completeExceptionally(e) }
             }
-            audio.close()
         }
-        val first = audio.receive()
+        rendering
+    }
+
+    /** Plays each sentence as soon as it is made, with a short pause between sentences. */
+    private suspend fun playRendering(rendering: Rendering) {
+        val sampleRate = rendering.sampleRate.await()
+        val first = rendering.sentences.first().await()
         val track = newTrack(sampleRate)
         try {
             track.play()
             var written = writeAll(track, first)
-            for (samples in audio) {
+            for (next in rendering.sentences.drop(1)) {
+                val samples = next.await()
                 written += writeAll(track, FloatArray(sampleRate * SENTENCE_GAP_MS / 1000))
                 written += writeAll(track, samples)
             }
@@ -203,6 +241,9 @@ class TextToSpeech @Inject constructor(
 
     private companion object {
         const val TAG = "TextToSpeech"
+
+        /** Texts whose audio is kept for replay (64 KB per second of speech). */
+        const val KEEP_RENDERED = 6
 
         /** 100 ms at 16 kHz. */
         const val WRITE_BLOCK = 1_600

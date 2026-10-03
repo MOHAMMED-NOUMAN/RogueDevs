@@ -85,6 +85,8 @@ class CommunicationViewModel @Inject constructor(
             }
             val shown = CommunicationUiState.Transcribed(transcript)
             _uiState.value = shown
+            // Made now, while the transcript is read, so Play aloud starts at once.
+            textToSpeech.prepare(transcript, transcript.text, transcript.language.toMessageLanguage())
             send(shown)
         }
     }
