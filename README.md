@@ -5,8 +5,8 @@
 <h1>iTantra</h1>
 
 <p><b>Offline, multilingual push-to-talk for emergency teams.</b><br/>
-Speak into one phone. The words become text on the device and reach your teammate over<br/>
-Wi-Fi Direct or Bluetooth. No internet, no SIM, no server.</p>
+Speak into one phone. The words become text on the device, reach your teammate over<br/>
+Wi-Fi Direct or Bluetooth, and are read aloud there. No internet, no SIM, no server.</p>
 
 <br/>
 
@@ -122,7 +122,8 @@ saved on the phone. A live notification shows the link status.
 <img src="https://api.iconify.design/material-symbols/record-voice-over-rounded.svg?color=%2319B878" width="30" />
 <h3>Read aloud</h3>
 Each message from the teammate is spoken as it arrives, in the language it was said in (English
-or Hindi), by an offline voice on the phone. <b>Play again</b> repeats the latest one.
+or Hindi), by an offline voice on the phone. <b>Play again</b> repeats the latest one, and
+<b>Play aloud</b> reads back your own message, so the voices can be tried on a single phone.
 </td>
 </tr>
 </table>
@@ -273,10 +274,11 @@ upgrade the Android Gradle Plugin; versions are pinned.
 |:---:|---|---|
 | **1** | Install, sign up with a name and language | Same |
 | **2** | **Pair** tab → **Show my code** | **Pair** tab → **Enter a code**, type it |
-| **3** | **Home** → hold the mic, speak, release | The message appears on **Home** |
+| **3** | **Home** → hold the mic, speak, release | The message appears on **Home** and is read aloud |
 | **4** | **SOS** → hold for 3 seconds | Alarm rings → **I'm coming** |
 
-The speech language is set in **Settings → Speech Language**.
+The speech language is set in **Settings → Speech Language**. With one phone, tap **Play aloud**
+on the "You said" card to hear your message in the offline voice.
 
 <br/>
 
